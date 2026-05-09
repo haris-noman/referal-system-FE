@@ -19,8 +19,8 @@ const NAV = [
     href: "/tracking",
     match: ["/tracking", "/submit"],
   },
-  { icon: FileText, label: "Documents", href: "/documents" },
-  { icon: Settings, label: "Settings", href: "/settings" },
+  { icon: FileText, label: "Documents", href: "#" },
+  { icon: Settings, label: "Settings", href: "#" },
 ];
 
 const TITLES: Record<string, string> = {

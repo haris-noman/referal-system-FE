@@ -368,7 +368,7 @@ const DashboardPage = () => {
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-line-soft flex items-center justify-center text-[10px] font-bold text-muted">
+                      <div className="w-8 h-8 rounded-[2px] bg-line-soft flex items-center justify-center text-[10px] font-bold text-muted">
                         {row.initials}
                       </div>
                       <div>
