@@ -120,7 +120,7 @@ const Layout = () => {
             className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted hover:bg-line-soft hover:text-ink transition-colors"
           >
             <LogOut className="w-[18px] h-[18px]" strokeWidth={1.75} />
-            <span>Sign Out</span>
+            <span>Logout</span>
           </button>
         </div>
       </aside>
