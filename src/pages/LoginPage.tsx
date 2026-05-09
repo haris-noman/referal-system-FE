@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, ArrowRight, ShieldCheck, BadgeCheck } from "lucide-react";
+import { NetworkPortalLogo } from "../components/ui/Logo";
 
 const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -16,16 +17,7 @@ const LoginPage = () => {
       <div className="flex-1 flex items-center justify-center px-6 py-16">
         <div className="w-full max-w-[420px]">
           <div className="flex flex-col items-center text-center mb-10">
-            <div className="w-9 h-9 mb-5 grid grid-cols-3 grid-rows-3 gap-[3px]">
-              {[0, 1, 0, 0, 1, 0, 1, 0, 1].map((on, i) => (
-                <span
-                  key={i}
-                  className={
-                    on ? "rounded-[2px] bg-ink" : "rounded-[2px] bg-transparent"
-                  }
-                />
-              ))}
-            </div>
+            <NetworkPortalLogo title="Network Portal" className="h-9 w-auto mb-5" />
             <h1 className="text-[26px] font-bold tracking-tight text-ink">
               Network Portal
             </h1>
