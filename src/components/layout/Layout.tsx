@@ -133,7 +133,7 @@ const Layout = () => {
           </div>
         </header>
 
-        <div className="px-10 py-8 flex-1">
+        <div className="px-10 py-8 flex-1 bg-[#FCF8FA]">
           <Outlet />
         </div>
       </main>
