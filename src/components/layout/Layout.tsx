@@ -10,6 +10,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { NetworkPortalBadge } from "../ui/Logo";
 
 const NAV = [
   { icon: LayoutGrid, label: "Dashboard", href: "/dashboard" },
@@ -67,13 +68,16 @@ const Layout = () => {
   return (
     <div className="flex min-h-screen bg-canvas">
       <aside className="w-[232px] shrink-0 bg-white border-r border-line flex flex-col fixed h-screen z-20">
-        <div className="px-6 pt-6 pb-8">
-          <h1 className="text-[15px] font-bold tracking-tight text-ink leading-none">
-            Network Portal
-          </h1>
-          <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-2">
-            Enterprise Admin
-          </p>
+        <div className="px-6 pt-6 pb-8 flex items-center gap-3">
+          <NetworkPortalBadge title="Network Portal" className="w-8 h-8 shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-[14px] font-bold tracking-tight text-ink leading-none">
+              Network Portal
+            </h1>
+            <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-2">
+              Enterprise Admin
+            </p>
+          </div>
         </div>
 
         <nav className="flex-1 px-4 space-y-0.5">
