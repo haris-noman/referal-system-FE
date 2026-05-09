@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutGrid,
@@ -59,10 +60,28 @@ const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const title = TITLES[location.pathname] ?? "Referral Portal";
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
 
   const isActive = (item: (typeof NAV)[number]) => {
     if (item.match) return item.match.includes(location.pathname);
     return location.pathname === item.href;
+  };
+
+  const getInitials = (name: string) => {
+    return name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
   };
 
   return (
@@ -89,7 +108,7 @@ const Layout = () => {
         <div className="px-4 py-6 border-t border-line space-y-0.5">
           <SidebarLink icon={HelpCircle} label="Support" href="/support" />
           <button
-            onClick={() => navigate("/login")}
+            onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted hover:bg-line-soft hover:text-ink transition-colors"
           >
             <LogOut className="w-[18px] h-[18px]" strokeWidth={1.75} />
@@ -124,14 +143,14 @@ const Layout = () => {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-[13px] font-semibold text-ink leading-tight">
-                  Alex Thompson
+                  {user?.full_name || 'Guest User'}
                 </p>
                 <p className="text-[11px] text-muted leading-tight">
-                  Global Partner
+                  {user?.role === 'admin' ? 'Administrator' : 'Global Partner'}
                 </p>
               </div>
               <div className="w-8 h-8 rounded-full bg-line-soft flex items-center justify-center text-[11px] font-bold text-muted">
-                AT
+                {getInitials(user?.full_name || 'Guest User')}
               </div>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Users,
   ClipboardList,
@@ -11,6 +12,7 @@ import {
   FileText,
   Filter,
   ArrowUpDown,
+  Loader2,
 } from "lucide-react";
 import {
   BarChart,
@@ -24,15 +26,7 @@ import {
 } from "recharts";
 import { Link } from "react-router-dom";
 import { cn } from "../lib/utils";
-
-const chartData = [
-  { name: "JAN", approved: 45, pending: 20 },
-  { name: "FEB", approved: 52, pending: 25 },
-  { name: "MAR", approved: 48, pending: 18 },
-  { name: "APR", approved: 61, pending: 30 },
-  { name: "MAY", approved: 55, pending: 22 },
-  { name: "JUN", approved: 67, pending: 28 },
-];
+import api from "../lib/api";
 
 type StatTone = "neutral" | "warning" | "info" | "success";
 
@@ -52,7 +46,7 @@ const StatCard = ({
 }: {
   icon: any;
   label: string;
-  value: string;
+  value: string | number;
   tag: string;
   tone?: StatTone;
 }) => (
@@ -79,14 +73,20 @@ const StatCard = ({
   </div>
 );
 
-type Status = "Pending" | "Approved" | "Draft" | "In Review" | "Rejected";
+type Status = "pending" | "approved" | "draft" | "rejected";
+
+const STATUS_DISPLAY: Record<Status, string> = {
+  approved: "Approved",
+  pending: "Pending",
+  rejected: "Rejected",
+  draft: "Draft",
+};
 
 const STATUS_STYLES: Record<Status, string> = {
-  Approved: "bg-(--color-success-bg) text-(--color-success-fg)",
-  Pending: "bg-(--color-warning-bg) text-(--color-warning-fg)",
-  "In Review": "bg-(--color-info-bg) text-(--color-info-fg)",
-  Rejected: "bg-(--color-danger-bg) text-(--color-danger-fg)",
-  Draft: "bg-(--color-neutral-bg) text-(--color-neutral-fg)",
+  approved: "bg-(--color-success-bg) text-(--color-success-fg)",
+  pending: "bg-(--color-warning-bg) text-(--color-warning-fg)",
+  rejected: "bg-(--color-danger-bg) text-(--color-danger-fg)",
+  draft: "bg-(--color-neutral-bg) text-(--color-neutral-fg)",
 };
 
 const StatusPill = ({ status }: { status: Status }) => (
@@ -96,85 +96,72 @@ const StatusPill = ({ status }: { status: Status }) => (
       STATUS_STYLES[status],
     )}
   >
-    {status}
+    {STATUS_DISPLAY[status]}
   </span>
 );
 
-const ACTIVITY = [
-  {
-    icon: CheckCircle,
-    title: "Referral Approved",
-    desc: "Lead: Sarah Jenkins — $1,200 commission pending.",
-    time: "2 hours ago",
-  },
-  {
-    icon: UserPlus,
-    title: "New Referral Submitted",
-    desc: "Lead: Vertex Dynamics — Tier 1 Enterprise opportunity.",
-    time: "5 hours ago",
-  },
-  {
-    icon: Clock,
-    title: "Status Update",
-    desc: "Lead: Michael Chen moved to 'Documentation' stage.",
-    time: "Yesterday",
-  },
-  {
-    icon: FileText,
-    title: "Documents Uploaded",
-    desc: "Signed NDA received for lead: Quantum Logistics.",
-    time: "Aug 12, 2024",
-  },
-];
-
-const PIPELINE: Array<{
-  initials: string;
-  name: string;
-  service: string;
-  date: string;
-  value: string;
-  status: Status;
-  est: string;
-}> = [
-  {
-    initials: "VD",
-    name: "Vertex Dynamics",
-    service: "Enterprise Cloud",
-    date: "Aug 14, 2024",
-    value: "$12,400",
-    status: "Pending",
-    est: "$1,240",
-  },
-  {
-    initials: "QL",
-    name: "Quantum Logistics",
-    service: "Fleet Management",
-    date: "Aug 12, 2024",
-    value: "$8,500",
-    status: "Approved",
-    est: "$850",
-  },
-  {
-    initials: "SJ",
-    name: "Sarah Jenkins",
-    service: "SME Consulting",
-    date: "Aug 10, 2024",
-    value: "$2,200",
-    status: "Draft",
-    est: "$220",
-  },
-];
+const ACTIVITY_ICONS: Record<string, any> = {
+  referral_submitted: UserPlus,
+  referral_approved: CheckCircle,
+  referral_rejected: Clock,
+};
 
 const DashboardPage = () => {
+  const [summary, setSummary] = useState<any>(null);
+  const [stats, setStats] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [pipeline, setPipeline] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) setUser(JSON.parse(userData));
+
+    const fetchData = async () => {
+      try {
+        const [summaryRes, statsRes, activitiesRes, pipelineRes] = await Promise.all([
+          api.get("/dashboard/summary/"),
+          api.get("/dashboard/monthly-stats/"),
+          api.get("/dashboard/recent-activity/"),
+          api.get("/referrals/"),
+        ]);
+
+        setSummary(summaryRes.data);
+        setStats(statsRes.data.map((s: any) => ({
+          name: ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][s.month - 1],
+          approved: s.approved_count,
+          pending: s.referral_count - s.approved_count,
+        })));
+        setActivities(activitiesRes.data);
+        setPipeline(pipelineRes.data.results || pipelineRes.data);
+      } catch (err) {
+        console.error("Failed to fetch dashboard data", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 animate-spin text-muted" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <h2 className="text-[24px] font-bold text-ink tracking-tight">
-            Partner Overview
+            {user?.role === 'admin' ? 'Administrator Overview' : 'Partner Overview'}
           </h2>
           <p className="text-sm text-muted mt-1">
-            Performance metrics and referral activities for Q3 2024
+            Performance metrics and referral activities for {new Date().getFullYear()}
           </p>
         </div>
         <div className="flex gap-3">
@@ -193,30 +180,30 @@ const DashboardPage = () => {
         <StatCard
           icon={Users}
           label="Total Referrals"
-          value="1,284"
-          tag="+12%"
-          tone="success"
+          value={summary?.total_referrals || 0}
+          tag="All Time"
+          tone="neutral"
         />
         <StatCard
           icon={ClipboardList}
           label="Pending Review"
-          value="42"
+          value={summary?.pending_review || 0}
           tag="Active"
           tone="warning"
         />
         <StatCard
           icon={CheckCircle2}
           label="Approved Leads"
-          value="1,130"
-          tag="88% Rate"
+          value={summary?.approved_leads || 0}
+          tag={`${Math.round((summary?.approved_leads / (summary?.total_referrals || 1)) * 100)}% Rate`}
           tone="info"
         />
         <StatCard
           icon={DollarSign}
           label="Total Commission"
-          value="$48,250"
+          value={`$${parseFloat(summary?.total_commission || 0).toLocaleString()}`}
           tag="USD"
-          tone="neutral"
+          tone="success"
         />
       </div>
 
@@ -240,7 +227,7 @@ const DashboardPage = () => {
           <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={chartData}
+                data={stats}
                 margin={{ top: 10, right: 4, left: -24, bottom: 0 }}
               >
                 <CartesianGrid
@@ -298,24 +285,29 @@ const DashboardPage = () => {
             </h3>
           </div>
           <div className="space-y-5 flex-1">
-            {ACTIVITY.map((a, i) => (
+            {activities.length > 0 ? activities.map((a, i) => (
               <div key={i} className="flex gap-3">
                 <div className="w-7 h-7 rounded-full bg-light-gray flex items-center justify-center text-ink shrink-0">
-                  <a.icon className="w-3.5 h-3.5" strokeWidth={1.75} />
+                  {(() => {
+                    const Icon = ACTIVITY_ICONS[a.action] || FileText;
+                    return <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />;
+                  })()}
                 </div>
                 <div className="min-w-0">
                   <p className="text-[13px] font-semibold text-ink leading-tight">
-                    {a.title}
+                    {a.action.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                   </p>
                   <p className="text-[12px] text-muted leading-snug mt-0.5">
-                    {a.desc}
+                    User {a.user_email} performed {a.action}
                   </p>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-2 mt-1.5">
-                    {a.time}
+                    {new Date(a.timestamp).toLocaleString()}
                   </p>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-center text-muted text-sm py-10">No recent activity</p>
+            )}
           </div>
           <button className="btn-secondary w-full mt-5 py-2.5">
             View All Activity
@@ -356,45 +348,51 @@ const DashboardPage = () => {
                   Status
                 </th>
                 <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
-                  Estimate
+                  Estimate/Commission
                 </th>
               </tr>
             </thead>
             <tbody>
-              {PIPELINE.map((row) => (
+              {pipeline.length > 0 ? pipeline.map((row) => (
                 <tr
-                  key={row.name}
+                  key={row.id}
                   className="border-b border-line-soft last:border-b-0 hover:bg-line-soft/50 transition-colors"
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-[2px] bg-line-soft flex items-center justify-center text-[10px] font-bold text-muted">
-                        {row.initials}
+                        {row.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
                       </div>
                       <div>
                         <p className="text-[13px] font-semibold text-ink leading-tight">
-                          {row.name}
+                          {row.full_name}
                         </p>
                         <p className="text-[11px] text-muted leading-tight mt-0.5">
-                          {row.service}
+                          {row.referral_type.replace(/_/g, ' ')}
                         </p>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-[13px] text-muted">
-                    {row.date}
+                    {new Date(row.submitted_at).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-[13px] font-semibold text-ink">
-                    {row.value}
+                    ${parseFloat(row.estimated_value).toLocaleString()}
                   </td>
                   <td className="px-6 py-4">
                     <StatusPill status={row.status} />
                   </td>
                   <td className="px-6 py-4 text-right text-[13px] font-semibold text-ink">
-                    {row.est}
+                    {row.status === 'approved' ? `$${parseFloat(row.commission_amount).toLocaleString()}` : '—'}
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-muted">
+                    No referrals found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

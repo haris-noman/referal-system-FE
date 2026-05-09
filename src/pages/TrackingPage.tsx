@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Download,
@@ -7,17 +8,25 @@ import {
   Clock,
   Award,
   Filter as FilterIcon,
+  Loader2,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import api from "../lib/api";
 
-type Status = "Approved" | "Pending" | "Completed" | "Rejected" | "On Hold";
+type Status = "pending" | "approved" | "rejected" | "draft";
+
+const STATUS_DISPLAY: Record<Status, string> = {
+  approved: "Approved",
+  pending: "Pending",
+  rejected: "Rejected",
+  draft: "Draft",
+};
 
 const STATUS_STYLES: Record<Status, string> = {
-  Approved: "bg-(--color-success-bg) text-(--color-success-fg)",
-  Pending: "bg-(--color-warning-bg) text-(--color-warning-fg)",
-  Completed: "bg-(--color-info-bg) text-(--color-info-fg)",
-  Rejected: "bg-(--color-danger-bg) text-(--color-danger-fg)",
-  "On Hold": "bg-(--color-neutral-bg) text-(--color-neutral-fg)",
+  approved: "bg-(--color-success-bg) text-(--color-success-fg)",
+  pending: "bg-(--color-warning-bg) text-(--color-warning-fg)",
+  rejected: "bg-(--color-danger-bg) text-(--color-danger-fg)",
+  draft: "bg-(--color-neutral-bg) text-(--color-neutral-fg)",
 };
 
 const StatusPill = ({ status }: { status: Status }) => (
@@ -27,59 +36,9 @@ const StatusPill = ({ status }: { status: Status }) => (
       STATUS_STYLES[status],
     )}
   >
-    {status}
+    {STATUS_DISPLAY[status]}
   </span>
 );
-
-const referrals: Array<{
-  id: string;
-  initials: string;
-  lead: string;
-  date: string;
-  value: string;
-  status: Status;
-}> = [
-  {
-    id: "REF-8842",
-    initials: "JS",
-    lead: "Jonathan Sterling",
-    date: "Oct 12, 2023",
-    value: "$45,000.00",
-    status: "Approved",
-  },
-  {
-    id: "REF-8841",
-    initials: "AR",
-    lead: "Amara Rodriguez",
-    date: "Oct 14, 2023",
-    value: "$12,400.00",
-    status: "Pending",
-  },
-  {
-    id: "REF-8839",
-    initials: "MB",
-    lead: "Marcus Bennett",
-    date: "Oct 09, 2023",
-    value: "$150,000.00",
-    status: "Completed",
-  },
-  {
-    id: "REF-8835",
-    initials: "EL",
-    lead: "Elena Langford",
-    date: "Oct 05, 2023",
-    value: "$8,500.00",
-    status: "Rejected",
-  },
-  {
-    id: "REF-8832",
-    initials: "TH",
-    lead: "Tobias Hoffmann",
-    date: "Oct 01, 2023",
-    value: "$96,250.00",
-    status: "Approved",
-  },
-];
 
 const SUMMARY = [
   {
@@ -106,6 +65,37 @@ const SUMMARY = [
 ];
 
 const TrackingPage = () => {
+  const [referrals, setReferrals] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalValue, setTotalValue] = useState(0);
+
+  useEffect(() => {
+    const fetchReferrals = async () => {
+      try {
+        const response = await api.get("/referrals/");
+        const results = response.data.results || response.data;
+        setReferrals(results);
+        
+        const total = results.reduce((acc: number, curr: any) => acc + parseFloat(curr.estimated_value || 0), 0);
+        setTotalValue(total);
+      } catch (err) {
+        console.error("Failed to fetch referrals", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReferrals();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 animate-spin text-muted" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -150,7 +140,7 @@ const TrackingPage = () => {
           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
             Total Value
           </span>
-          <span className="text-[18px] font-bold text-ink">$412,850.00</span>
+          <span className="text-[18px] font-bold text-ink">${totalValue.toLocaleString()}</span>
         </div>
       </div>
 
@@ -175,7 +165,7 @@ const TrackingPage = () => {
               </tr>
             </thead>
             <tbody>
-              {referrals.map((row) => (
+              {referrals.length > 0 ? referrals.map((row) => (
                 <tr
                   key={row.id}
                   className="border-b border-line-soft last:border-b-0 hover:bg-line-soft/50 transition-colors"
@@ -188,30 +178,35 @@ const TrackingPage = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-7 h-7 rounded-full bg-line-soft flex items-center justify-center text-[10px] font-bold text-muted">
-                        {row.initials}
+                        {row.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
                       </div>
                       <span className="text-[13px] font-semibold text-ink">
-                        {row.lead}
+                        {row.full_name}
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-[13px] text-muted">
-                    {row.date}
+                    {new Date(row.submitted_at).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-right text-[13px] font-semibold text-ink">
-                    {row.value}
+                    ${parseFloat(row.estimated_value).toLocaleString()}
                   </td>
                   <td className="px-6 py-4">
                     <StatusPill status={row.status} />
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-muted">
+                    No referrals found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
         <div className="px-6 py-3 border-t border-line text-[12px] text-muted">
-          Showing <span className="font-semibold text-ink">1 to 5</span> of{" "}
-          <span className="font-semibold text-ink">42</span> referrals
+          Showing <span className="font-semibold text-ink">{referrals.length}</span> referrals
         </div>
       </div>
 
