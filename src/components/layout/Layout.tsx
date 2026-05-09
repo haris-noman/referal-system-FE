@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { NetworkPortalBadge } from "../ui/Logo";
+import api from "../../lib/api";
 
 const NAV = [
   { icon: LayoutGrid, label: "Dashboard", href: "/dashboard" },
@@ -63,10 +64,17 @@ const Layout = () => {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get("/auth/profile/");
+        setUser(response.data);
+        localStorage.setItem("user", JSON.stringify(response.data));
+      } catch (err) {
+        console.error("Failed to fetch profile", err);
+      }
+    };
+
+    fetchProfile();
   }, []);
 
   const handleLogout = () => {

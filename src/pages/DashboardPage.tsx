@@ -114,36 +114,60 @@ const DashboardPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
 
+  const fetchData = async () => {
+    try {
+      const [summaryRes, statsRes, activitiesRes, pipelineRes, profileRes] = await Promise.all([
+        api.get("/dashboard/summary/"),
+        api.get("/dashboard/monthly-stats/"),
+        api.get("/dashboard/recent-activity/"),
+        api.get("/referrals/"),
+        api.get("/auth/profile/"),
+      ]);
+
+      setSummary(summaryRes.data);
+      setStats(statsRes.data.map((s: any) => ({
+        name: ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][s.month - 1],
+        approved: s.approved_count,
+        pending: s.referral_count - s.approved_count,
+      })));
+      setActivities(activitiesRes.data);
+      setPipeline(pipelineRes.data.results || pipelineRes.data);
+      setUser(profileRes.data);
+      localStorage.setItem("user", JSON.stringify(profileRes.data));
+    } catch (err) {
+      console.error("Failed to fetch dashboard data", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (userData) setUser(JSON.parse(userData));
-
-    const fetchData = async () => {
-      try {
-        const [summaryRes, statsRes, activitiesRes, pipelineRes] = await Promise.all([
-          api.get("/dashboard/summary/"),
-          api.get("/dashboard/monthly-stats/"),
-          api.get("/dashboard/recent-activity/"),
-          api.get("/referrals/"),
-        ]);
-
-        setSummary(summaryRes.data);
-        setStats(statsRes.data.map((s: any) => ({
-          name: ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][s.month - 1],
-          approved: s.approved_count,
-          pending: s.referral_count - s.approved_count,
-        })));
-        setActivities(activitiesRes.data);
-        setPipeline(pipelineRes.data.results || pipelineRes.data);
-      } catch (err) {
-        console.error("Failed to fetch dashboard data", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchData();
   }, []);
+
+  const handleApprove = async (id: number) => {
+    const rate = window.prompt("Enter commission rate (%)", "5");
+    if (rate === null) return;
+    
+    try {
+      await api.post(`/referrals/${id}/approve/`, { commission_rate: rate });
+      fetchData(); // Refresh
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Approval failed");
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    const reason = window.prompt("Enter rejection reason");
+    if (reason === null) return;
+
+    try {
+      await api.post(`/referrals/${id}/reject/`, { rejection_reason: reason });
+      fetchData(); // Refresh
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Rejection failed");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -350,6 +374,11 @@ const DashboardPage = () => {
                 <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
                   Estimate/Commission
                 </th>
+                {user?.role === 'admin' && (
+                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -385,10 +414,32 @@ const DashboardPage = () => {
                   <td className="px-6 py-4 text-right text-[13px] font-semibold text-ink">
                     {row.status === 'approved' ? `$${parseFloat(row.commission_amount).toLocaleString()}` : '—'}
                   </td>
+                  {user?.role === 'admin' && (
+                    <td className="px-6 py-4 text-right">
+                      {row.status === 'pending' ? (
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => handleApprove(row.id)}
+                            className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 uppercase tracking-wider"
+                          >
+                            Approve
+                          </button>
+                          <button 
+                            onClick={() => handleReject(row.id)}
+                            className="text-[11px] font-bold text-red-600 hover:text-red-700 uppercase tracking-wider"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted italic">No actions</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-muted">
+                  <td colSpan={user?.role === 'admin' ? 6 : 5} className="px-6 py-10 text-center text-muted">
                     No referrals found.
                   </td>
                 </tr>
