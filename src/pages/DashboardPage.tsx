@@ -150,7 +150,9 @@ const DashboardPage = () => {
     if (rate === null) return;
     
     try {
-      await api.post(`/referrals/${id}/approve/`, { commission_rate: rate });
+      const formData = new FormData();
+      formData.append("commission_rate", rate);
+      await api.post(`/referrals/${id}/approve/`, formData);
       fetchData(); // Refresh
     } catch (err: any) {
       alert(err.response?.data?.error || "Approval failed");
@@ -162,7 +164,9 @@ const DashboardPage = () => {
     if (reason === null) return;
 
     try {
-      await api.post(`/referrals/${id}/reject/`, { rejection_reason: reason });
+      const formData = new FormData();
+      formData.append("rejection_reason", reason);
+      await api.post(`/referrals/${id}/reject/`, formData);
       fetchData(); // Refresh
     } catch (err: any) {
       alert(err.response?.data?.error || "Rejection failed");

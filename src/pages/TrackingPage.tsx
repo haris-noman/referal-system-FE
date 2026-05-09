@@ -68,25 +68,58 @@ const TrackingPage = () => {
   const [referrals, setReferrals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalValue, setTotalValue] = useState(0);
+  const [user, setUser] = useState<any>(null);
+
+  const fetchReferrals = async () => {
+    try {
+      const [referralsRes, profileRes] = await Promise.all([
+        api.get("/referrals/"),
+        api.get("/auth/profile/"),
+      ]);
+      const results = referralsRes.data.results || referralsRes.data;
+      setReferrals(results);
+      
+      const total = results.reduce((acc: number, curr: any) => acc + parseFloat(curr.estimated_value || 0), 0);
+      setTotalValue(total);
+      setUser(profileRes.data);
+    } catch (err) {
+      console.error("Failed to fetch data", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchReferrals = async () => {
-      try {
-        const response = await api.get("/referrals/");
-        const results = response.data.results || response.data;
-        setReferrals(results);
-        
-        const total = results.reduce((acc: number, curr: any) => acc + parseFloat(curr.estimated_value || 0), 0);
-        setTotalValue(total);
-      } catch (err) {
-        console.error("Failed to fetch referrals", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchReferrals();
   }, []);
+
+  const handleApprove = async (id: number) => {
+    const rate = window.prompt("Enter commission rate (%)", "5");
+    if (rate === null) return;
+    
+    try {
+      const formData = new FormData();
+      formData.append("commission_rate", rate);
+      await api.post(`/referrals/${id}/approve/`, formData);
+      fetchReferrals(); // Refresh
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Approval failed");
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    const reason = window.prompt("Enter rejection reason");
+    if (reason === null) return;
+
+    try {
+      const formData = new FormData();
+      formData.append("rejection_reason", reason);
+      await api.post(`/referrals/${id}/reject/`, formData);
+      fetchReferrals(); // Refresh
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Rejection failed");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -149,18 +182,25 @@ const TrackingPage = () => {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-line">
-                {["ID", "Lead Name", "Date Submitted", "Value", "Status"].map(
-                  (header, i) => (
-                    <th
-                      key={header}
-                      className={cn(
-                        "px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted",
-                        i === 3 ? "text-right" : "text-left",
-                      )}
-                    >
-                      {header}
-                    </th>
-                  ),
+                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left">
+                  ID
+                </th>
+                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left">
+                  Lead Name
+                </th>
+                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left">
+                  Date Submitted
+                </th>
+                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
+                  Value
+                </th>
+                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left">
+                  Status
+                </th>
+                {user?.role === 'admin' && (
+                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
+                    Actions
+                  </th>
                 )}
               </tr>
             </thead>
@@ -194,10 +234,32 @@ const TrackingPage = () => {
                   <td className="px-6 py-4">
                     <StatusPill status={row.status} />
                   </td>
+                  {user?.role === 'admin' && (
+                    <td className="px-6 py-4 text-right">
+                      {row.status === 'pending' ? (
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => handleApprove(row.id)}
+                            className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 uppercase tracking-wider"
+                          >
+                            Approve
+                          </button>
+                          <button 
+                            onClick={() => handleReject(row.id)}
+                            className="text-[11px] font-bold text-red-600 hover:text-red-700 uppercase tracking-wider"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted italic">No actions</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-muted">
+                  <td colSpan={user?.role === 'admin' ? 6 : 5} className="px-6 py-10 text-center text-muted">
                     No referrals found.
                   </td>
                 </tr>
