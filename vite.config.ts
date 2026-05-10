@@ -2,7 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// https://vite.dev/config/
+// https://vite.dev/config//
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
@@ -11,13 +11,20 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         "/api": {
-          target:
-            env.VITE_API_BASE_URL ||
-            "https://referal-system-django-production.up.railway.app",
+          target: env.VITE_API_BASE_URL,
           changeOrigin: true,
-          secure: true,
+          rewrite: (path) => path.replace(/^\/api/, ""),
         },
       },
+      // proxy: {
+      //   "/api": {
+      //     target:
+      //       env.VITE_API_BASE_URL ||
+      //       "https://referal-system-django-production.up.railway.app",
+      //     changeOrigin: true,
+      //     secure: true,
+      //   },
+      // },
     },
   };
 });
