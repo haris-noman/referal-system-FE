@@ -30,6 +30,10 @@ import api from "../lib/api";
 import { useSearch } from "../contexts/SearchContext";
 import { exportCsv } from "../lib/exportCsv";
 import { Popover, PopoverItem } from "../components/ui/Popover";
+import ReferralActionModal, {
+  type ReferralAction,
+  type ReferralActionTarget,
+} from "../components/ReferralActionModal";
 
 type StatTone = "neutral" | "warning" | "info" | "success";
 
@@ -145,6 +149,10 @@ const DashboardPage = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | Status>("all");
   const [sortOpen, setSortOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [actionTarget, setActionTarget] = useState<ReferralActionTarget | null>(
+    null,
+  );
+  const [actionType, setActionType] = useState<ReferralAction | null>(null);
 
   const fetchData = async () => {
     try {
@@ -177,32 +185,19 @@ const DashboardPage = () => {
     fetchData();
   }, []);
 
-  const handleApprove = async (id: number) => {
-    const rate = window.prompt("Enter commission rate (%)", "5");
-    if (rate === null) return;
-    
-    try {
-      const formData = new FormData();
-      formData.append("commission_rate", rate);
-      await api.post(`/referrals/${id}/approve/`, formData);
-      fetchData(); // Refresh
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Approval failed");
-    }
+  const openAction = (row: any, type: ReferralAction) => {
+    setActionTarget({
+      id: row.id,
+      full_name: row.full_name,
+      estimated_value: row.estimated_value,
+      referral_type: row.referral_type,
+    });
+    setActionType(type);
   };
 
-  const handleReject = async (id: number) => {
-    const reason = window.prompt("Enter rejection reason");
-    if (reason === null) return;
-
-    try {
-      const formData = new FormData();
-      formData.append("rejection_reason", reason);
-      await api.post(`/referrals/${id}/reject/`, formData);
-      fetchData(); // Refresh
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Rejection failed");
-    }
+  const closeAction = () => {
+    setActionTarget(null);
+    setActionType(null);
   };
 
   const displayedPipeline = useMemo(() => {
@@ -314,10 +309,12 @@ const DashboardPage = () => {
             <Download className="w-3.5 h-3.5" strokeWidth={2} />
             Download Report
           </button>
-          <Link to="/submit" className="btn-primary">
-            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-            Submit New Referral
-          </Link>
+          {user?.role !== "admin" && (
+            <Link to="/submit" className="btn-primary">
+              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+              Submit New Referral
+            </Link>
+          )}
         </div>
       </div>
 
@@ -595,14 +592,14 @@ const DashboardPage = () => {
                     <td className="px-6 py-4 text-right">
                       {row.status === 'pending' ? (
                         <div className="flex justify-end gap-2">
-                          <button 
-                            onClick={() => handleApprove(row.id)}
+                          <button
+                            onClick={() => openAction(row, "approve")}
                             className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 uppercase tracking-wider"
                           >
                             Approve
                           </button>
-                          <button 
-                            onClick={() => handleReject(row.id)}
+                          <button
+                            onClick={() => openAction(row, "reject")}
                             className="text-[11px] font-bold text-red-600 hover:text-red-700 uppercase tracking-wider"
                           >
                             Reject
@@ -627,6 +624,13 @@ const DashboardPage = () => {
           </table>
         </div>
       </div>
+
+      <ReferralActionModal
+        referral={actionTarget}
+        action={actionType}
+        onClose={closeAction}
+        onSuccess={fetchData}
+      />
     </div>
   );
 };
