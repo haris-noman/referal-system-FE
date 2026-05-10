@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://referal-system-django-production.up.railway.app/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "https://referal-system-django-production.up.railway.app/api/$1"
     },
     {
       "source": "/(.*)",
