@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Users,
   ClipboardList,
@@ -27,6 +27,9 @@ import {
 import { Link } from "react-router-dom";
 import { cn } from "../lib/utils";
 import api from "../lib/api";
+import { useSearch } from "../contexts/SearchContext";
+import { exportCsv } from "../lib/exportCsv";
+import { Popover, PopoverItem } from "../components/ui/Popover";
 
 type StatTone = "neutral" | "warning" | "info" | "success";
 
@@ -106,6 +109,28 @@ const ACTIVITY_ICONS: Record<string, any> = {
   referral_rejected: Clock,
 };
 
+type SortKey = "submitted_at" | "full_name" | "estimated_value" | "status";
+type SortDir = "asc" | "desc";
+
+const SORT_OPTIONS: { value: `${SortKey}:${SortDir}`; label: string }[] = [
+  { value: "submitted_at:desc", label: "Newest first" },
+  { value: "submitted_at:asc", label: "Oldest first" },
+  { value: "full_name:asc", label: "Name (A–Z)" },
+  { value: "full_name:desc", label: "Name (Z–A)" },
+  { value: "estimated_value:desc", label: "Value (high to low)" },
+  { value: "estimated_value:asc", label: "Value (low to high)" },
+  { value: "status:asc", label: "Status (A–Z)" },
+];
+
+const STATUS_FILTERS: { value: "all" | Status; label: string }[] = [
+  { value: "all", label: "All Statuses" },
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "draft", label: "Draft" },
+];
+
+
 const DashboardPage = () => {
   const [summary, setSummary] = useState<any>(null);
   const [stats, setStats] = useState<any[]>([]);
@@ -113,6 +138,13 @@ const DashboardPage = () => {
   const [pipeline, setPipeline] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const { query } = useSearch();
+  const [sortValue, setSortValue] = useState<`${SortKey}:${SortDir}`>(
+    "submitted_at:desc",
+  );
+  const [statusFilter, setStatusFilter] = useState<"all" | Status>("all");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -173,6 +205,87 @@ const DashboardPage = () => {
     }
   };
 
+  const displayedPipeline = useMemo(() => {
+    const [key, dir] = sortValue.split(":") as [SortKey, SortDir];
+    const q = query.trim().toLowerCase();
+
+    const filtered = pipeline.filter((row) => {
+      if (statusFilter !== "all" && row.status !== statusFilter) return false;
+      if (!q) return true;
+      const haystack = [
+        row.full_name,
+        row.email,
+        row.referral_type,
+        row.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      const va = a?.[key];
+      const vb = b?.[key];
+
+      let cmp = 0;
+      if (key === "submitted_at") {
+        cmp = new Date(va || 0).getTime() - new Date(vb || 0).getTime();
+      } else if (key === "estimated_value") {
+        cmp = parseFloat(va || 0) - parseFloat(vb || 0);
+      } else {
+        cmp = String(va ?? "").localeCompare(String(vb ?? ""));
+      }
+      return dir === "asc" ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [pipeline, query, statusFilter, sortValue]);
+
+  const handleDownloadReport = () => {
+    if (displayedPipeline.length === 0) {
+      alert("No referrals to download for the current filters.");
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 10);
+    exportCsv(
+      `referral-report-${stamp}.csv`,
+      [
+        { key: "id", header: "ID" },
+        { key: "full_name", header: "Full Name" },
+        { key: "email", header: "Email" },
+        { key: "phone_number", header: "Phone" },
+        { key: "referral_type", header: "Type" },
+        { key: "estimated_value", header: "Estimated Value (USD)" },
+        { key: "commission_amount", header: "Commission (USD)" },
+        { key: "status", header: "Status" },
+        { key: "submitted_at", header: "Submitted At" },
+      ],
+      displayedPipeline.map((r) => ({
+        id: r.id,
+        full_name: r.full_name,
+        email: r.email ?? "",
+        phone_number: r.phone_number ?? "",
+        referral_type: r.referral_type,
+        estimated_value: parseFloat(r.estimated_value || 0).toFixed(2),
+        commission_amount:
+          r.status === "approved"
+            ? parseFloat(r.commission_amount || 0).toFixed(2)
+            : "",
+        status: r.status,
+        submitted_at: r.submitted_at
+          ? new Date(r.submitted_at).toISOString()
+          : "",
+      })),
+    );
+  };
+
+  const sortLabel =
+    SORT_OPTIONS.find((o) => o.value === sortValue)?.label ?? "Sort";
+  const filterLabel =
+    STATUS_FILTERS.find((o) => o.value === statusFilter)?.label ??
+    "All Statuses";
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -193,7 +306,11 @@ const DashboardPage = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          <button className="btn-secondary">
+          <button
+            type="button"
+            onClick={handleDownloadReport}
+            className="btn-secondary"
+          >
             <Download className="w-3.5 h-3.5" strokeWidth={2} />
             Download Report
           </button>
@@ -344,19 +461,75 @@ const DashboardPage = () => {
       </div>
 
       <div className="bg-white border border-line rounded-card overflow-hidden">
-        <div className="px-6 py-5 flex items-center justify-between border-b border-line">
-          <h3 className="text-[15px] font-semibold text-ink">
-            Referral Pipeline
-          </h3>
+        <div className="px-6 py-5 flex items-center justify-between border-b border-line gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <h3 className="text-[15px] font-semibold text-ink">
+              Referral Pipeline
+            </h3>
+            {(query || statusFilter !== "all") && (
+              <span className="text-[11px] text-muted">
+                {displayedPipeline.length} of {pipeline.length}
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
-            <button className="btn-secondary text-[11px]! py-1.5! px-3!">
-              <Filter className="w-3 h-3" strokeWidth={2} />
-              Filter
-            </button>
-            <button className="btn-secondary text-[11px]! py-1.5! px-3!">
-              <ArrowUpDown className="w-3 h-3" strokeWidth={2} />
-              Sort
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterOpen((v) => !v);
+                  setSortOpen(false);
+                }}
+                className={cn(
+                  "btn-secondary text-[11px]! py-1.5! px-3!",
+                  statusFilter !== "all" && "border-ink text-ink",
+                )}
+              >
+                <Filter className="w-3 h-3" strokeWidth={2} />
+                {filterLabel}
+              </button>
+              <Popover open={filterOpen} onClose={() => setFilterOpen(false)}>
+                {STATUS_FILTERS.map((opt) => (
+                  <PopoverItem
+                    key={opt.value}
+                    active={statusFilter === opt.value}
+                    onClick={() => {
+                      setStatusFilter(opt.value);
+                      setFilterOpen(false);
+                    }}
+                  >
+                    {opt.label}
+                  </PopoverItem>
+                ))}
+              </Popover>
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setSortOpen((v) => !v);
+                  setFilterOpen(false);
+                }}
+                className="btn-secondary text-[11px]! py-1.5! px-3!"
+              >
+                <ArrowUpDown className="w-3 h-3" strokeWidth={2} />
+                {sortLabel}
+              </button>
+              <Popover open={sortOpen} onClose={() => setSortOpen(false)}>
+                {SORT_OPTIONS.map((opt) => (
+                  <PopoverItem
+                    key={opt.value}
+                    active={sortValue === opt.value}
+                    onClick={() => {
+                      setSortValue(opt.value);
+                      setSortOpen(false);
+                    }}
+                  >
+                    {opt.label}
+                  </PopoverItem>
+                ))}
+              </Popover>
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -386,7 +559,7 @@ const DashboardPage = () => {
               </tr>
             </thead>
             <tbody>
-              {pipeline.length > 0 ? pipeline.map((row) => (
+              {displayedPipeline.length > 0 ? displayedPipeline.map((row) => (
                 <tr
                   key={row.id}
                   className="border-b border-line-soft last:border-b-0 hover:bg-line-soft/50 transition-colors"
@@ -444,7 +617,9 @@ const DashboardPage = () => {
               )) : (
                 <tr>
                   <td colSpan={user?.role === 'admin' ? 6 : 5} className="px-6 py-10 text-center text-muted">
-                    No referrals found.
+                    {pipeline.length === 0
+                      ? "No referrals found."
+                      : "No referrals match your search or filters."}
                   </td>
                 </tr>
               )}

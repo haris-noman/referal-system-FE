@@ -9,10 +9,12 @@ import {
   LogOut,
   Bell,
   Search,
+  X,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { NetworkPortalBadge } from "../ui/Logo";
 import api from "../../lib/api";
+import { SearchProvider, useSearch } from "../../contexts/SearchContext";
 
 const NAV = [
   { icon: LayoutGrid, label: "Dashboard", href: "/dashboard" },
@@ -31,6 +33,8 @@ const TITLES: Record<string, string> = {
   "/tracking": "Referral Portal",
   "/submit": "Referral Form",
 };
+
+const SEARCH_ENABLED_PATHS = new Set(["/dashboard", "/tracking"]);
 
 const SidebarLink = ({
   icon: Icon,
@@ -57,11 +61,13 @@ const SidebarLink = ({
   </Link>
 );
 
-const Layout = () => {
+const LayoutInner = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const title = TITLES[location.pathname] ?? "Referral Portal";
   const [user, setUser] = useState<any>(null);
+  const { query, setQuery } = useSearch();
+  const searchEnabled = SEARCH_ENABLED_PATHS.has(location.pathname);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -76,6 +82,12 @@ const Layout = () => {
 
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    if (!searchEnabled && query) {
+      setQuery("");
+    }
+  }, [searchEnabled, query, setQuery]);
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
@@ -136,9 +148,26 @@ const Layout = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-2" />
               <input
                 type="text"
-                placeholder="Search referrals..."
-                className="w-full bg-transparent border-0 py-2 pl-9 pr-3 text-sm placeholder:text-muted-2 focus:outline-none"
+                value={searchEnabled ? query : ""}
+                onChange={(e) => setQuery(e.target.value)}
+                disabled={!searchEnabled}
+                placeholder={
+                  searchEnabled
+                    ? "Search by name, email, type or status..."
+                    : "Search available on Dashboard & Tracking"
+                }
+                className="w-full bg-transparent border-0 py-2 pl-9 pr-9 text-sm placeholder:text-muted-2 focus:outline-none disabled:cursor-not-allowed"
               />
+              {searchEnabled && query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-2 hover:text-ink hover:bg-line-soft transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" strokeWidth={2} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -171,5 +200,11 @@ const Layout = () => {
     </div>
   );
 };
+
+const Layout = () => (
+  <SearchProvider>
+    <LayoutInner />
+  </SearchProvider>
+);
 
 export default Layout;
