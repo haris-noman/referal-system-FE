@@ -101,14 +101,23 @@ const LayoutInner = () => {
   };
 
   const getInitials = (name: string) => {
-    return name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
+    return (
+      name
+        ?.split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase() || "U"
+    );
   };
 
   return (
     <div className="flex min-h-screen bg-canvas">
       <aside className="w-[232px] shrink-0 bg-white border-r border-line flex flex-col fixed h-screen z-20">
         <div className="px-6 pt-6 pb-8 flex items-center gap-3">
-          <NetworkPortalBadge title="Network Portal" className="w-8 h-8 shrink-0" />
+          <NetworkPortalBadge
+            title="Network Portal"
+            className="w-8 h-8 shrink-0"
+          />
           <div className="min-w-0">
             <h1 className="text-[14px] font-bold tracking-tight text-ink leading-none">
               Network Portal
@@ -153,7 +162,7 @@ const LayoutInner = () => {
                 disabled={!searchEnabled}
                 placeholder={
                   searchEnabled
-                    ? "Search by name, email, type or status..."
+                    ? "Search by referrals"
                     : "Search available on Dashboard & Tracking"
                 }
                 className="w-full bg-transparent border-0 py-2 pl-9 pr-9 text-sm placeholder:text-muted-2 focus:outline-none disabled:cursor-not-allowed"
@@ -180,14 +189,14 @@ const LayoutInner = () => {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-[13px] font-semibold text-ink leading-tight">
-                  {user?.full_name || 'Guest User'}
+                  {user?.full_name || "Guest User"}
                 </p>
                 <p className="text-[11px] text-muted leading-tight">
-                  {user?.role === 'admin' ? 'Administrator' : 'Global Partner'}
+                  {user?.role === "admin" ? "Administrator" : "Global Partner"}
                 </p>
               </div>
               <div className="w-8 h-8 rounded-full bg-line-soft flex items-center justify-center text-[11px] font-bold text-muted">
-                {getInitials(user?.full_name || 'Guest User')}
+                {getInitials(user?.full_name || "Guest User")}
               </div>
             </div>
           </div>
