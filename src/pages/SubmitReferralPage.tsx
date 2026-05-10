@@ -85,6 +85,45 @@ type FormErrors = Partial<{
   documentFile: string;
 }>;
 
+type ValidatableField =
+  | "fullName"
+  | "email"
+  | "phoneNumber"
+  | "estimatedValue";
+
+const VALIDATORS: Record<
+  ValidatableField,
+  (value: string) => string | undefined
+> = {
+  fullName: (value) => {
+    const t = value.trim();
+    if (!t) return "Full name is required.";
+    if (t.length < 2) return "Full name must be at least 2 characters.";
+    return undefined;
+  },
+  email: (value) => {
+    const t = value.trim();
+    if (!t) return "Email is required.";
+    if (!EMAIL_RE.test(t)) return "Enter a valid email address.";
+    return undefined;
+  },
+  phoneNumber: (value) => {
+    const t = value.trim();
+    if (!t) return "Phone number is required.";
+    if (!PHONE_RE.test(t))
+      return "Enter a valid phone number (at least 7 digits, optional + and separators).";
+    return undefined;
+  },
+  estimatedValue: (value) => {
+    if (value === "") return "Estimated value is required.";
+    const n = Number(value);
+    if (Number.isNaN(n)) return "Estimated value is required.";
+    if (n <= 0) return "Value must be greater than zero.";
+    if (n > 1_000_000_000) return "Value is unrealistically large.";
+    return undefined;
+  },
+};
+
 const validateFile = (file: File): string | null => {
   const lowerName = file.name.toLowerCase();
   const extOk = ACCEPTED_EXT.some((ext) => lowerName.endsWith(ext));
@@ -119,35 +158,18 @@ const SubmitReferralPage = () => {
 
   const validate = (action: "submit" | "draft"): FormErrors => {
     const next: FormErrors = {};
-    const trimmedName = fullName.trim();
-    const trimmedEmail = email.trim();
-    const trimmedPhone = phoneNumber.trim();
-
-    // For drafts, only validate what is provided so users can save partial work.
-    if (action === "submit" || trimmedName) {
-      if (!trimmedName) next.fullName = "Full name is required.";
-      else if (trimmedName.length < 2)
-        next.fullName = "Full name must be at least 2 characters.";
-    }
-    if (action === "submit" || trimmedEmail) {
-      if (!trimmedEmail) next.email = "Email is required.";
-      else if (!EMAIL_RE.test(trimmedEmail))
-        next.email = "Enter a valid email address.";
-    }
-    if (action === "submit" || trimmedPhone) {
-      if (!trimmedPhone) next.phoneNumber = "Phone number is required.";
-      else if (!PHONE_RE.test(trimmedPhone))
-        next.phoneNumber =
-          "Enter a valid phone number (at least 7 digits, optional + and separators).";
-    }
-    if (action === "submit" || estimatedValue) {
-      const numeric = Number(estimatedValue);
-      if (estimatedValue === "" || Number.isNaN(numeric))
-        next.estimatedValue = "Estimated value is required.";
-      else if (numeric <= 0)
-        next.estimatedValue = "Value must be greater than zero.";
-      else if (numeric > 1_000_000_000)
-        next.estimatedValue = "Value is unrealistically large.";
+    const fields: Array<[ValidatableField, string]> = [
+      ["fullName", fullName],
+      ["email", email],
+      ["phoneNumber", phoneNumber],
+      ["estimatedValue", estimatedValue],
+    ];
+    // For drafts, only validate fields the user has filled.
+    for (const [key, value] of fields) {
+      if (action === "submit" || value.trim()) {
+        const err = VALIDATORS[key](value);
+        if (err) next[key] = err;
+      }
     }
     if (documentFile) {
       const fileErr = validateFile(documentFile);
@@ -155,6 +177,21 @@ const SubmitReferralPage = () => {
     }
     return next;
   };
+
+  const handleFieldChange =
+    (key: ValidatableField, setter: (v: string) => void) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      setter(value);
+      setErrors((prev) => {
+        if (!prev[key]) return prev;
+        const nextErr = VALIDATORS[key](value);
+        if (nextErr === prev[key]) return prev;
+        const merged: FormErrors = { ...prev, [key]: nextErr };
+        return merged;
+      });
+      setSubmitError("");
+    };
 
   const acceptFile = (file: File) => {
     const err = validateFile(file);
@@ -277,7 +314,7 @@ const SubmitReferralPage = () => {
                   )}
                   placeholder="e.g. Jonathan Harker"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={handleFieldChange("fullName", setFullName)}
                   autoComplete="name"
                 />
               </Field>
@@ -290,7 +327,7 @@ const SubmitReferralPage = () => {
                   )}
                   placeholder="j.harker@enterprise.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={handleFieldChange("email", setEmail)}
                   autoComplete="email"
                 />
               </Field>
@@ -307,7 +344,7 @@ const SubmitReferralPage = () => {
                   )}
                   placeholder="+1 (555) 000-0000"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  onChange={handleFieldChange("phoneNumber", setPhoneNumber)}
                   autoComplete="tel"
                   inputMode="tel"
                 />
@@ -353,7 +390,10 @@ const SubmitReferralPage = () => {
                     )}
                     placeholder="0.00"
                     value={estimatedValue}
-                    onChange={(e) => setEstimatedValue(e.target.value)}
+                    onChange={handleFieldChange(
+                      "estimatedValue",
+                      setEstimatedValue,
+                    )}
                   />
                 </div>
               </Field>
