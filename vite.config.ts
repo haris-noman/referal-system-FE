@@ -11,13 +11,20 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         "/api": {
-          target:
-            env.VITE_API_BASE_URL ||
-            "https://referal-system-django-production.up.railway.app",
+          target: env.VITE_API_BASE_URL,
           changeOrigin: true,
-          secure: true,
+          rewrite: (path) => path.replace(/^\/api/, ""),
         },
       },
+      // proxy: {
+      //   "/api": {
+      //     target:
+      //       env.VITE_API_BASE_URL ||
+      //       "https://referal-system-django-production.up.railway.app",
+      //     changeOrigin: true,
+      //     secure: true,
+      //   },
+      // },
     },
   };
 });
