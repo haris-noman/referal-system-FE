@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   ArrowLeft,
@@ -39,10 +39,11 @@ const splitCode = (raw: string): { uid: string; token: string } | null => {
 
 const ResetPasswordPage = () => {
   const [params] = useSearchParams();
+  const pathParams = useParams<{ uid?: string; token?: string }>();
   const navigate = useNavigate();
 
-  const initialUid = params.get("uid") || "";
-  const initialToken = params.get("token") || "";
+  const initialUid = pathParams.uid || params.get("uid") || "";
+  const initialToken = pathParams.token || params.get("token") || "";
 
   const [uid, setUid] = useState(initialUid);
   const [token, setToken] = useState(initialToken);
