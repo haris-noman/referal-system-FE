@@ -7,7 +7,6 @@ import {
   Settings,
   HelpCircle,
   LogOut,
-  Bell,
   Search,
   X,
   Mail,
