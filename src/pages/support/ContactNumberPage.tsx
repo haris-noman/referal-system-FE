@@ -24,6 +24,13 @@ const LINES = [
     hours: "Mon – Fri · 9:00am – 7:00pm SGT",
     timezone: "SGT · UTC +8",
   },
+  {
+    region: "Australia",
+    flag: "🇦🇺",
+    number: "+61 2 8123 4567",
+    hours: "Mon – Fri · 9:00am – 6:00pm AEST",
+    timezone: "AEST · UTC +10",
+  },
 ];
 
 const QUICK_LINKS = [
@@ -55,7 +62,7 @@ const ContactNumberPage = () => {
         description="Speak with a live agent across regions. Save the line that matches your timezone."
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
         {LINES.map((line) => (
           <div
             key={line.region}
