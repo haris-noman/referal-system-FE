@@ -40,7 +40,11 @@ export const SUPPORT_ITEMS = [
   { icon: HelpCircle, label: "FAQ Section", href: "/support/faq" },
   { icon: MessageSquare, label: "Send Message", href: "/support/send-message" },
   { icon: Ticket, label: "Submit Ticket", href: "/support/submit-ticket" },
-  { icon: Activity, label: "Response Status", href: "/support/response-status" },
+  {
+    icon: Activity,
+    label: "Response Status",
+    href: "/support/response-status",
+  },
 ];
 
 const TITLES: Record<string, string> = {
@@ -245,19 +249,22 @@ const LayoutInner = () => {
             </span>
             <span className="h-5 w-px bg-line" />
             <div className="relative w-[320px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-2" />
-              <input
-                type="text"
-                value={searchEnabled ? query : ""}
-                onChange={(e) => setQuery(e.target.value)}
-                disabled={!searchEnabled}
-                placeholder={
-                  searchEnabled
-                    ? "Search by referrals"
-                    : "Search available on Dashboard & Tracking"
-                }
-                className="w-full bg-transparent border-0 py-2 pl-9 pr-9 text-sm placeholder:text-muted-2 focus:outline-none disabled:cursor-not-allowed"
-              />
+              {searchEnabled && (
+                <>
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-2" />
+                  <input
+                    type="text"
+                    value={searchEnabled ? query : ""}
+                    onChange={(e) => setQuery(e.target.value)}
+                    disabled={!searchEnabled}
+                    placeholder={
+                      searchEnabled ? "Search by referrals" : "Search"
+                    }
+                    className="w-full bg-transparent border-0 py-2 pl-9 pr-9 text-sm placeholder:text-muted-2 focus:outline-none disabled:cursor-not-allowed"
+                  />
+                </>
+              )}
+
               {searchEnabled && query && (
                 <button
                   type="button"
