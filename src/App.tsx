@@ -12,6 +12,8 @@ import FaqPage from "./pages/support/FaqPage";
 import SendMessagePage from "./pages/support/SendMessagePage";
 import SubmitTicketPage from "./pages/support/SubmitTicketPage";
 import ResponseStatusPage from "./pages/support/ResponseStatusPage";
+import SettingsPage from "./pages/settings/SettingsPage";
+import DocumentsPage from "./pages/documents/DocumentsPage";
 import Layout from "./components/layout/Layout";
 
 const ProtectedRoute = () => {
@@ -38,6 +40,8 @@ function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="submit" element={<SubmitReferralPage />} />
             <Route path="tracking" element={<TrackingPage />} />
+            <Route path="documents" element={<DocumentsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
             <Route path="support" element={<Navigate to="/support/email" replace />} />
             <Route path="support/email" element={<SupportEmailPage />} />
             <Route path="support/contact" element={<ContactNumberPage />} />

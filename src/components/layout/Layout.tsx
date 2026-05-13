@@ -30,8 +30,8 @@ const NAV = [
     href: "/tracking",
     match: ["/tracking", "/submit"],
   },
-  { icon: FileText, label: "Documents", href: "#" },
-  { icon: Settings, label: "Settings", href: "#" },
+  { icon: FileText, label: "Documents", href: "/documents" },
+  { icon: Settings, label: "Settings", href: "/settings" },
 ];
 
 export const SUPPORT_ITEMS = [
@@ -51,6 +51,8 @@ const TITLES: Record<string, string> = {
   "/dashboard": "Referral Portal",
   "/tracking": "Referral Portal",
   "/submit": "Referral Form",
+  "/documents": "Document Center",
+  "/settings": "Account Settings",
   "/support/email": "Support Center",
   "/support/contact": "Support Center",
   "/support/faq": "Support Center",
