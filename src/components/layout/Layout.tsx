@@ -337,18 +337,6 @@ const LayoutInner = () => {
           </div>
 
           <div className="flex items-center gap-5">
-            <button
-              type="button"
-              aria-label="Notifications"
-              className="relative text-muted hover:text-ink transition-colors"
-            >
-              <Bell className="w-[18px] h-[18px]" strokeWidth={1.75} />
-              <span
-                aria-hidden
-                className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-surface"
-              />
-            </button>
-            <div className="h-5 w-px bg-line" />
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-[13px] font-semibold text-ink leading-tight">
