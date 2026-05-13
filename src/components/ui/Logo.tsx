@@ -30,14 +30,14 @@ export const NetworkPortalBadge = ({ className, title }: LogoProps) => (
     role={title ? "img" : undefined}
     aria-hidden={title ? undefined : true}
     aria-label={title}
-    className={className}
+    className={cn("fill-ink [&_.badge-glyph]:fill-surface", className)}
   >
-    <rect width="32" height="32" rx="6" fill="#0B1220" />
+    <rect width="32" height="32" rx="6" />
     <path
+      className="badge-glyph"
       fillRule="evenodd"
       clipRule="evenodd"
       d="M18.25 22.75V20.5H15.25V13H13.75V15.25H8.5V9.25H13.75V11.5H18.25V9.25H23.5V15.25H18.25V13H16.75V19H18.25V16.75H23.5V22.75H18.25ZM19.75 13.75H22V10.75H19.75V13.75ZM19.75 21.25H22V18.25H19.75V21.25ZM10 13.75H12.25V10.75H10V13.75Z"
-      fill="white"
     />
   </svg>
 );

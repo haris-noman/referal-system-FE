@@ -18,7 +18,7 @@ const AuthShell = ({
   showTrustBadges = true,
 }: AuthShellProps) => {
   return (
-    <div className="min-h-screen bg-[#FCF8FA] flex flex-col">
+    <div className="min-h-screen bg-canvas flex flex-col">
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-10 sm:py-16">
         <div className="w-full max-w-[420px]">
           <div className="flex flex-col items-center text-center mb-8 sm:mb-10">
@@ -61,7 +61,7 @@ const AuthShell = ({
         </div>
       </div>
 
-      <footer className="bg-[#FCF8FA] py-5 sm:py-6 text-center px-4">
+      <footer className="bg-canvas py-5 sm:py-6 text-center px-4">
         <p className="text-[11px] text-muted-2">
           © 2024 Referral Network Portal. All rights reserved. Professional Use
           Only.

@@ -302,7 +302,7 @@ const LayoutInner = () => {
           </div>
         </header>
 
-        <div className="px-10 py-8 flex-1 bg-[#FCF8FA]">
+        <div className="px-10 py-8 flex-1 bg-canvas">
           <Outlet />
         </div>
       </main>

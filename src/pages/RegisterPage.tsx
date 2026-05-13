@@ -41,7 +41,7 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FCF8FA] flex flex-col">
+    <div className="min-h-screen bg-canvas flex flex-col">
       <div className="flex-1 flex items-center justify-center px-6 py-16">
         <div className="w-full max-w-[420px]">
           <div className="flex flex-col items-center text-center mb-10">
@@ -173,7 +173,7 @@ const RegisterPage = () => {
         </div>
       </div>
 
-      <footer className="bg-[#FCF8FA] py-6 text-center">
+      <footer className="bg-canvas py-6 text-center">
         <p className="text-[11px] text-muted-2">
           © 2024 Referral Network Portal. All rights reserved. Professional Use
           Only.
