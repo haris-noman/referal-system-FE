@@ -6,6 +6,12 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import SubmitReferralPage from "./pages/SubmitReferralPage";
 import TrackingPage from "./pages/TrackingPage";
+import SupportEmailPage from "./pages/support/SupportEmailPage";
+import ContactNumberPage from "./pages/support/ContactNumberPage";
+import FaqPage from "./pages/support/FaqPage";
+import SendMessagePage from "./pages/support/SendMessagePage";
+import SubmitTicketPage from "./pages/support/SubmitTicketPage";
+import ResponseStatusPage from "./pages/support/ResponseStatusPage";
 import Layout from "./components/layout/Layout";
 
 const ProtectedRoute = () => {
@@ -32,6 +38,13 @@ function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="submit" element={<SubmitReferralPage />} />
             <Route path="tracking" element={<TrackingPage />} />
+            <Route path="support" element={<Navigate to="/support/email" replace />} />
+            <Route path="support/email" element={<SupportEmailPage />} />
+            <Route path="support/contact" element={<ContactNumberPage />} />
+            <Route path="support/faq" element={<FaqPage />} />
+            <Route path="support/send-message" element={<SendMessagePage />} />
+            <Route path="support/submit-ticket" element={<SubmitTicketPage />} />
+            <Route path="support/response-status" element={<ResponseStatusPage />} />
           </Route>
         </Route>
         

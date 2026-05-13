@@ -10,6 +10,12 @@ import {
   Bell,
   Search,
   X,
+  Mail,
+  Phone,
+  MessageSquare,
+  Ticket,
+  Activity,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { NetworkPortalBadge } from "../ui/Logo";
@@ -28,10 +34,25 @@ const NAV = [
   { icon: Settings, label: "Settings", href: "#" },
 ];
 
+export const SUPPORT_ITEMS = [
+  { icon: Mail, label: "Support Email", href: "/support/email" },
+  { icon: Phone, label: "Contact Number", href: "/support/contact" },
+  { icon: HelpCircle, label: "FAQ Section", href: "/support/faq" },
+  { icon: MessageSquare, label: "Send Message", href: "/support/send-message" },
+  { icon: Ticket, label: "Submit Ticket", href: "/support/submit-ticket" },
+  { icon: Activity, label: "Response Status", href: "/support/response-status" },
+];
+
 const TITLES: Record<string, string> = {
   "/dashboard": "Referral Portal",
   "/tracking": "Referral Portal",
   "/submit": "Referral Form",
+  "/support/email": "Support Center",
+  "/support/contact": "Support Center",
+  "/support/faq": "Support Center",
+  "/support/send-message": "Support Center",
+  "/support/submit-ticket": "Support Center",
+  "/support/response-status": "Support Center",
 };
 
 const SEARCH_ENABLED_PATHS = new Set(["/dashboard", "/tracking"]);
@@ -60,6 +81,76 @@ const SidebarLink = ({
     <span>{label}</span>
   </Link>
 );
+
+const SupportDropdown = ({ currentPath }: { currentPath: string }) => {
+  const inSupport = currentPath.startsWith("/support");
+  const [open, setOpen] = useState(inSupport);
+
+  useEffect(() => {
+    if (inSupport) setOpen(true);
+  }, [inSupport]);
+
+  return (
+    <div className="select-none">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="support-submenu"
+        className={cn(
+          "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+          inSupport
+            ? "bg-line-soft text-ink font-semibold"
+            : "text-muted hover:bg-line-soft hover:text-ink",
+        )}
+      >
+        <HelpCircle className="w-[18px] h-[18px]" strokeWidth={1.75} />
+        <span className="flex-1 text-left">Support</span>
+        <ChevronDown
+          className={cn(
+            "w-4 h-4 text-muted-2 transition-transform duration-300",
+            open && "rotate-180",
+          )}
+          strokeWidth={2}
+        />
+      </button>
+
+      <div
+        id="support-submenu"
+        className={cn(
+          "grid transition-[grid-template-rows,opacity,margin] duration-300 ease-in-out",
+          open
+            ? "grid-rows-[1fr] opacity-100 mt-1"
+            : "grid-rows-[0fr] opacity-0 mt-0",
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="ml-3 pl-3 border-l border-line space-y-0.5 py-0.5">
+            {SUPPORT_ITEMS.map((item) => {
+              const active = currentPath === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className={cn(
+                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[12.5px] transition-colors",
+                    active
+                      ? "bg-line-soft text-ink font-semibold"
+                      : "text-muted hover:bg-line-soft hover:text-ink",
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const LayoutInner = () => {
   const location = useLocation();
@@ -112,7 +203,7 @@ const LayoutInner = () => {
 
   return (
     <div className="flex min-h-screen bg-canvas">
-      <aside className="w-[232px] shrink-0 bg-white border-r border-line flex flex-col fixed h-screen z-20">
+      <aside className="w-[232px] shrink-0 bg-white border-r border-line flex flex-col fixed h-screen z-20 overflow-y-auto">
         <div className="px-6 pt-6 pb-8 flex items-center gap-3">
           <NetworkPortalBadge
             title="Network Portal"
@@ -135,7 +226,7 @@ const LayoutInner = () => {
         </nav>
 
         <div className="px-4 py-6 border-t border-line space-y-0.5">
-          <SidebarLink icon={HelpCircle} label="Support" href="/support" />
+          <SupportDropdown currentPath={location.pathname} />
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted hover:bg-line-soft hover:text-ink transition-colors"
