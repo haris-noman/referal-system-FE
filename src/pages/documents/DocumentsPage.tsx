@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Files,
   FileCheck2,
@@ -21,39 +21,44 @@ import {
   Image as ImageIcon,
   FileType2,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Popover, PopoverItem } from "../../components/ui/Popover";
 import Modal from "../../components/ui/Modal";
-import { exportCsv } from "../../lib/exportCsv";
 import UploadDocumentModal from "./components/UploadDocumentModal";
 import RejectDocumentModal from "./components/RejectDocumentModal";
 import ViewDocumentModal from "./components/ViewDocumentModal";
 import ActivityLog from "./components/ActivityLog";
 import {
   CATEGORY_LABEL,
-  INITIAL_ACTIVITY,
-  INITIAL_DOCUMENTS,
   STATUS_LABEL,
   STATUS_TONE,
+  TYPE_ICON_KIND,
   TYPE_LABEL,
   TYPE_TONE,
-  detectType,
+  apiToDocument,
   formatBytes,
   type ActivityEntry,
   type DocumentCategory,
   type DocumentItem,
   type DocumentStatus,
-  type DocumentType,
+  type IconKind,
 } from "./documentsData";
+import {
+  documentsApi,
+  extractApiError,
+  type ApiDocumentSummary,
+  type DocumentListParams,
+} from "../../lib/documentsApi";
 
-const TYPE_ICON: Record<DocumentType, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
+const TYPE_ICON: Record<IconKind, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
   pdf: FileText,
   docx: FileType2,
   image: ImageIcon,
 };
 
-const STORAGE_QUOTA = 1024 * 1024 * 1024 * 5; // 5GB
+const STORAGE_QUOTA_MB = 5 * 1024; // 5GB
 
 type StatusFilter = "all" | DocumentStatus;
 type CategoryFilter = "all" | DocumentCategory;
@@ -62,9 +67,7 @@ type SortValue =
   | "uploaded:desc"
   | "uploaded:asc"
   | "name:asc"
-  | "name:desc"
-  | "size:desc"
-  | "size:asc";
+  | "name:desc";
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All Statuses" },
@@ -85,22 +88,19 @@ const SORT_OPTIONS: { value: SortValue; label: string }[] = [
   { value: "uploaded:asc", label: "Oldest first" },
   { value: "name:asc", label: "Name (A–Z)" },
   { value: "name:desc", label: "Name (Z–A)" },
-  { value: "size:desc", label: "Size (large to small)" },
-  { value: "size:asc", label: "Size (small to large)" },
 ];
 
-const matchesDate = (iso: string, filter: DateFilter) => {
-  if (filter === "all") return true;
-  const d = new Date(iso);
-  const now = new Date();
+const dateFromForFilter = (filter: DateFilter): string | undefined => {
+  if (filter === "all") return undefined;
   const days = filter === "7d" ? 7 : filter === "30d" ? 30 : 90;
-  const cutoff = new Date(now);
-  cutoff.setDate(cutoff.getDate() - days);
-  return d >= cutoff;
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
 };
 
 const formatDate = (iso: string) => {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -153,37 +153,103 @@ const StatCard = ({
 );
 
 const DocumentsPage = () => {
-  const [documents, setDocuments] = useState<DocumentItem[]>(INITIAL_DOCUMENTS);
-  const [activity, setActivity] = useState<ActivityEntry[]>(INITIAL_ACTIVITY);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [summary, setSummary] = useState<ApiDocumentSummary | null>(null);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionBusyId, setActionBusyId] = useState<number | null>(null);
+  const [user, setUser] = useState<{ role?: string } | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [sortValue, setSortValue] = useState<SortValue>("uploaded:desc");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   const [statusOpen, setStatusOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [rowMenuId, setRowMenuId] = useState<string | null>(null);
+  const [rowMenuId, setRowMenuId] = useState<number | null>(null);
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [viewing, setViewing] = useState<DocumentItem | null>(null);
   const [rejectTarget, setRejectTarget] = useState<DocumentItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentItem | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const reqIdRef = useRef(0);
+  const isAdmin = user?.role === "admin";
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 350);
-    return () => clearTimeout(t);
+    try {
+      const raw = localStorage.getItem("user");
+      if (raw) setUser(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  // 350ms debounce on the search input so we don't hammer the API.
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedQuery(query.trim()), 350);
+    return () => window.clearTimeout(id);
+  }, [query]);
+
+  const fetchDocuments = useCallback(
+    async (silent = false) => {
+      const reqId = ++reqIdRef.current;
+      if (!silent) setRefreshing(true);
+      setListError(null);
+      const params: DocumentListParams = {};
+      if (statusFilter !== "all") params.status = statusFilter;
+      if (categoryFilter !== "all") params.category = categoryFilter;
+      const dateFrom = dateFromForFilter(dateFilter);
+      if (dateFrom) params.date_from = dateFrom;
+      if (debouncedQuery) params.search = debouncedQuery;
+
+      try {
+        const [list, sum] = await Promise.all([
+          documentsApi.list(params),
+          documentsApi.summary().catch(() => null),
+        ]);
+        if (reqId !== reqIdRef.current) return; // a newer request superseded us
+        setDocuments(list.map(apiToDocument));
+        if (sum) setSummary(sum);
+      } catch (err) {
+        if (reqId !== reqIdRef.current) return;
+        setListError(extractApiError(err, "Failed to load documents."));
+      } finally {
+        if (reqId === reqIdRef.current) {
+          setRefreshing(false);
+          setLoading(false);
+        }
+      }
+    },
+    [statusFilter, categoryFilter, dateFilter, debouncedQuery],
+  );
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  // Clear transient action errors after a moment so the banner doesn't linger.
+  useEffect(() => {
+    if (!actionError) return;
+    const id = window.setTimeout(() => setActionError(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [actionError]);
 
   const addActivity = (entry: Omit<ActivityEntry, "id" | "timestamp">) => {
     setActivity((prev) => [
       {
         ...entry,
-        id: `a-${Date.now()}`,
+        id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         timestamp: "Just now",
       },
       ...prev,
@@ -197,50 +263,41 @@ const DocumentsPage = () => {
     setExportOpen(false);
   };
 
+  // Server applies status/category/search/date_from already.
+  // Sorting stays client-side because the API doesn't expose an ordering param.
   const visibleDocuments = useMemo(() => {
     const [key, dir] = sortValue.split(":") as [
-      "uploaded" | "name" | "size",
+      "uploaded" | "name",
       "asc" | "desc",
     ];
-    const q = query.trim().toLowerCase();
-    const filtered = documents.filter((d) => {
-      if (statusFilter !== "all" && d.status !== statusFilter) return false;
-      if (categoryFilter !== "all" && d.category !== categoryFilter) return false;
-      if (!matchesDate(d.uploadedAt, dateFilter)) return false;
-      if (!q) return true;
-      return (
-        d.name.toLowerCase().includes(q) ||
-        d.uploadedBy.toLowerCase().includes(q) ||
-        CATEGORY_LABEL[d.category].toLowerCase().includes(q)
-      );
-    });
-    return [...filtered].sort((a, b) => {
+    return [...documents].sort((a, b) => {
       let cmp = 0;
       if (key === "uploaded") {
         cmp =
           new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime();
-      } else if (key === "size") {
-        cmp = a.size - b.size;
       } else {
         cmp = a.name.localeCompare(b.name);
       }
       return dir === "asc" ? cmp : -cmp;
     });
-  }, [documents, statusFilter, categoryFilter, dateFilter, sortValue, query]);
+  }, [documents, sortValue]);
 
-  const summary = useMemo(() => {
-    const total = documents.length;
-    const pending = documents.filter((d) => d.status === "pending").length;
-    const approved = documents.filter((d) => d.status === "approved").length;
-    const storageBytes = documents.reduce((acc, d) => acc + d.size, 0);
-    return {
-      total,
-      pending,
-      approved,
-      storageBytes,
-      storagePct: (storageBytes / STORAGE_QUOTA) * 100,
-    };
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    documents.forEach((d) => {
+      counts[d.category] = (counts[d.category] ?? 0) + 1;
+    });
+    return counts;
   }, [documents]);
+
+  const CATEGORY_TABS: { value: CategoryFilter; label: string; count: number }[] = [
+    { value: "all", label: "All", count: documents.length },
+    ...(Object.keys(CATEGORY_LABEL) as DocumentCategory[]).map((c) => ({
+      value: c,
+      label: CATEGORY_LABEL[c],
+      count: categoryCounts[c] ?? 0,
+    })),
+  ];
 
   const filtersActive =
     statusFilter !== "all" ||
@@ -255,141 +312,128 @@ const DocumentsPage = () => {
     setQuery("");
   };
 
-  const onUploadFile = async (file: File, category: DocumentCategory) => {
-    await new Promise((r) => setTimeout(r, 600));
-    const type = detectType(file.name);
-    if (!type) return;
-    const doc: DocumentItem = {
-      id: `doc-${Date.now()}`,
-      name: file.name,
-      type,
-      category,
-      uploadedBy: "Pedro Alvarez",
-      uploaderInitials: "PA",
-      uploadedAt: new Date().toISOString(),
-      size: file.size,
-      status: "pending",
-    };
-    setDocuments((prev) => [doc, ...prev]);
+  // --- Mutations -----------------------------------------------------------
+
+  const handleUpload = async (data: {
+    file: File;
+    name: string;
+    category: DocumentCategory;
+  }) => {
+    const created = await documentsApi.upload({
+      file: data.file,
+      name: data.name,
+      category: data.category,
+    });
+    const mapped = apiToDocument(created);
+    setDocuments((prev) => [
+      { ...mapped, size: data.file.size }, // keep size client-side for UX
+      ...prev,
+    ]);
     addActivity({
-      actor: "Pedro",
+      actor: "You",
       action: "uploaded",
-      target: file.name,
+      target: mapped.name,
       tone: "info",
     });
+    fetchDocuments(true);
   };
 
-  const approveDocument = (doc: DocumentItem) => {
-    setDocuments((prev) =>
-      prev.map((d) =>
-        d.id === doc.id
-          ? { ...d, status: "approved" as DocumentStatus, rejectionReason: undefined }
-          : d,
-      ),
-    );
-    addActivity({
-      actor: "Admin",
-      action: "approved",
-      target: doc.name,
-      tone: "success",
-    });
-    setRowMenuId(null);
+  const approveDocument = async (doc: DocumentItem) => {
+    setActionBusyId(doc.id);
+    try {
+      const updated = await documentsApi.approve(doc.id);
+      const mapped = apiToDocument(updated);
+      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? mapped : d)));
+      addActivity({
+        actor: "Admin",
+        action: "approved",
+        target: doc.name,
+        tone: "success",
+      });
+      fetchDocuments(true);
+    } catch (err) {
+      setActionError(extractApiError(err, "Failed to approve document."));
+    } finally {
+      setActionBusyId(null);
+      setRowMenuId(null);
+    }
   };
 
   const rejectDocument = async (reason: string) => {
     if (!rejectTarget) return;
-    setDocuments((prev) =>
-      prev.map((d) =>
-        d.id === rejectTarget.id
-          ? {
-              ...d,
-              status: "rejected" as DocumentStatus,
-              rejectionReason: reason,
-            }
-          : d,
-      ),
-    );
-    addActivity({
-      actor: "Admin",
-      action: "rejected",
-      target: rejectTarget.name,
-      tone: "danger",
-    });
-    setRejectTarget(null);
+    try {
+      const updated = await documentsApi.reject(rejectTarget.id, reason);
+      const mapped = apiToDocument(updated);
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === rejectTarget.id ? mapped : d)),
+      );
+      addActivity({
+        actor: "Admin",
+        action: "rejected",
+        target: rejectTarget.name,
+        tone: "danger",
+      });
+      setRejectTarget(null);
+      fetchDocuments(true);
+    } catch (err) {
+      setActionError(extractApiError(err, "Failed to reject document."));
+      throw err;
+    }
   };
 
-  const deleteDocument = () => {
+  const deleteDocument = async () => {
     if (!deleteTarget) return;
-    setDocuments((prev) => prev.filter((d) => d.id !== deleteTarget.id));
-    addActivity({
-      actor: "Pedro",
-      action: "deleted",
-      target: deleteTarget.name,
-      tone: "warning",
-    });
-    setDeleteTarget(null);
+    setActionBusyId(deleteTarget.id);
+    try {
+      await documentsApi.remove(deleteTarget.id);
+      setDocuments((prev) => prev.filter((d) => d.id !== deleteTarget.id));
+      addActivity({
+        actor: "You",
+        action: "deleted",
+        target: deleteTarget.name,
+        tone: "warning",
+      });
+      setDeleteTarget(null);
+      fetchDocuments(true);
+    } catch (err) {
+      setActionError(extractApiError(err, "Failed to delete document."));
+    } finally {
+      setActionBusyId(null);
+    }
   };
 
-  const downloadDocument = (doc: DocumentItem) => {
-    const blob = new Blob(
-      [`Dummy download for ${doc.name}\nUploaded by ${doc.uploadedBy}`],
-      { type: "text/plain" },
-    );
-    const url = URL.createObjectURL(blob);
-    const a = window.document.createElement("a");
-    a.href = url;
-    a.download = doc.name.replace(/\.[^.]+$/, ".txt");
-    a.click();
-    URL.revokeObjectURL(url);
+  const downloadDocument = async (doc: DocumentItem) => {
+    setActionBusyId(doc.id);
+    try {
+      await documentsApi.download(doc.id, doc.name);
+    } catch (err) {
+      setActionError(extractApiError(err, "Failed to download document."));
+    } finally {
+      setActionBusyId(null);
+      setRowMenuId(null);
+    }
   };
 
-  const handleExportCsv = () => {
-    if (visibleDocuments.length === 0) return;
-    const stamp = new Date().toISOString().slice(0, 10);
-    exportCsv(
-      `documents-${stamp}.csv`,
-      [
-        { key: "id", header: "ID" },
-        { key: "name", header: "Name" },
-        { key: "type", header: "Type" },
-        { key: "category", header: "Category" },
-        { key: "uploadedBy", header: "Uploaded By" },
-        { key: "uploadedAt", header: "Uploaded At" },
-        { key: "size", header: "Size (bytes)" },
-        { key: "status", header: "Status" },
-      ],
-      visibleDocuments.map((d) => ({
-        id: d.id,
-        name: d.name,
-        type: TYPE_LABEL[d.type],
-        category: CATEGORY_LABEL[d.category],
-        uploadedBy: d.uploadedBy,
-        uploadedAt: d.uploadedAt,
-        size: d.size,
-        status: STATUS_LABEL[d.status],
-      })),
-    );
+  const handleExportCsv = async () => {
+    setExporting(true);
+    setExportOpen(false);
+    try {
+      await documentsApi.exportCsv();
+    } catch (err) {
+      setActionError(extractApiError(err, "CSV export failed."));
+    } finally {
+      setExporting(false);
+    }
   };
+
+  // --- Derived display values ---------------------------------------------
 
   const statusLabel = STATUS_FILTERS.find((s) => s.value === statusFilter)?.label;
   const dateLabel = DATE_FILTERS.find((d) => d.value === dateFilter)?.label;
   const sortLabel = SORT_OPTIONS.find((s) => s.value === sortValue)?.label;
 
-  const CATEGORY_TABS: { value: CategoryFilter; label: string; count: number }[] =
-    useMemo(() => {
-      const counts: Record<string, number> = {};
-      documents.forEach((d) => {
-        counts[d.category] = (counts[d.category] ?? 0) + 1;
-      });
-      return [
-        { value: "all", label: "All", count: documents.length },
-        ...(Object.keys(CATEGORY_LABEL) as DocumentCategory[]).map((c) => ({
-          value: c,
-          label: CATEGORY_LABEL[c],
-          count: counts[c] ?? 0,
-        })),
-      ];
-    }, [documents]);
+  const storageUsedMb = summary?.storage_used_mb ?? 0;
+  const storagePct = (storageUsedMb / STORAGE_QUOTA_MB) * 100;
 
   if (loading) {
     return (
@@ -411,6 +455,19 @@ const DocumentsPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => fetchDocuments()}
+            disabled={refreshing}
+            className="btn-secondary"
+            aria-label="Refresh"
+          >
+            <RefreshCw
+              className={cn("w-3.5 h-3.5", refreshing && "animate-spin")}
+              strokeWidth={2}
+            />
+            Refresh
+          </button>
           <div className="relative">
             <button
               type="button"
@@ -418,9 +475,14 @@ const DocumentsPage = () => {
                 closePopovers();
                 setExportOpen((v) => !v);
               }}
+              disabled={exporting}
               className="btn-secondary"
             >
-              <Download className="w-3.5 h-3.5" strokeWidth={2} />
+              {exporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" strokeWidth={2} />
+              )}
               Export
               <ChevronDown className="w-3 h-3 text-muted-2" strokeWidth={2} />
             </button>
@@ -429,48 +491,14 @@ const DocumentsPage = () => {
               onClose={() => setExportOpen(false)}
               align="right"
             >
+              <PopoverItem onClick={handleExportCsv}>Export CSV</PopoverItem>
               <PopoverItem
                 onClick={() => {
-                  handleExportCsv();
                   setExportOpen(false);
-                }}
-              >
-                Export CSV
-              </PopoverItem>
-              <PopoverItem
-                onClick={() => {
                   window.print();
-                  setExportOpen(false);
                 }}
               >
-                Export PDF (Print)
-              </PopoverItem>
-              <PopoverItem
-                onClick={() => {
-                  const stamp = new Date().toISOString().slice(0, 10);
-                  exportCsv(
-                    `commission-report-${stamp}.csv`,
-                    [
-                      { key: "id", header: "ID" },
-                      { key: "name", header: "Document" },
-                      { key: "uploadedBy", header: "Partner" },
-                      { key: "uploadedAt", header: "Date" },
-                    ],
-                    documents
-                      .filter(
-                        (d) => d.category === "payment" && d.status === "approved",
-                      )
-                      .map((d) => ({
-                        id: d.id,
-                        name: d.name,
-                        uploadedBy: d.uploadedBy,
-                        uploadedAt: d.uploadedAt,
-                      })),
-                  );
-                  setExportOpen(false);
-                }}
-              >
-                Commission Report
+                Print / Save as PDF
               </PopoverItem>
             </Popover>
           </div>
@@ -485,32 +513,49 @@ const DocumentsPage = () => {
         </div>
       </div>
 
+      {actionError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-card px-4 py-2.5 flex items-start justify-between gap-3">
+          <p className="flex items-center gap-2 text-[12.5px] font-medium">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+            {actionError}
+          </p>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            aria-label="Dismiss"
+            className="p-1 rounded-full text-red-500 hover:bg-red-100 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" strokeWidth={2} />
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
           label="Total Documents"
-          value={summary.total.toString()}
+          value={(summary?.total_documents ?? documents.length).toString()}
           icon={Files}
           tone="bg-line-soft text-ink"
         />
         <StatCard
           label="Pending Verification"
-          value={summary.pending.toString()}
+          value={(summary?.pending_verification ?? 0).toString()}
           icon={Clock}
           tone={STATUS_TONE.pending}
         />
         <StatCard
           label="Approved Files"
-          value={summary.approved.toString()}
+          value={(summary?.approved_files ?? 0).toString()}
           icon={FileCheck2}
           tone={STATUS_TONE.approved}
         />
         <StatCard
           label="Storage Used"
-          value={formatBytes(summary.storageBytes)}
+          value={`${storageUsedMb.toFixed(1)} MB`}
           icon={HardDrive}
           tone="bg-(--color-info-bg) text-(--color-info-fg)"
-          bar={summary.storagePct}
-          hint={`of ${formatBytes(STORAGE_QUOTA)} (${summary.storagePct.toFixed(1)}%)`}
+          bar={storagePct}
+          hint={`of ${(STORAGE_QUOTA_MB / 1024).toFixed(0)} GB (${storagePct.toFixed(1)}%)`}
         />
       </div>
 
@@ -534,7 +579,9 @@ const DocumentsPage = () => {
                 <span
                   className={cn(
                     "min-w-[18px] h-[18px] inline-flex items-center justify-center px-1.5 rounded-full text-[10px] font-semibold",
-                    active ? "bg-white/15 text-white" : "bg-line-soft text-muted",
+                    active
+                      ? "bg-white/15 text-white"
+                      : "bg-line-soft text-muted",
                   )}
                 >
                   {tab.count}
@@ -677,209 +724,251 @@ const DocumentsPage = () => {
               Clear
             </button>
           )}
+
+          {refreshing && (
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
+              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+              Updating…
+            </span>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5 items-start">
         <div className="bg-white border border-line rounded-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-line">
-                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    Document
-                  </th>
-                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    Uploaded By
-                  </th>
-                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleDocuments.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-16">
-                      <div className="text-center">
-                        <Files
-                          className="w-8 h-8 mx-auto text-muted-2"
-                          strokeWidth={1.5}
-                        />
-                        <p className="mt-3 text-sm font-medium text-ink">
-                          No documents found
-                        </p>
-                        <p className="mt-1 text-[12.5px] text-muted">
-                          {filtersActive
-                            ? "Try clearing filters or adjusting your search."
-                            : "Upload your first document to get started."}
-                        </p>
-                      </div>
-                    </td>
+          {listError ? (
+            <div className="py-16 text-center">
+              <AlertCircle
+                className="w-8 h-8 mx-auto text-red-500"
+                strokeWidth={1.5}
+              />
+              <p className="mt-3 text-sm font-medium text-ink">
+                Couldn't load documents
+              </p>
+              <p className="mt-1 text-[12.5px] text-muted">{listError}</p>
+              <button
+                type="button"
+                onClick={() => fetchDocuments()}
+                className="btn-secondary mt-4"
+              >
+                <RefreshCw className="w-3.5 h-3.5" strokeWidth={2} />
+                Retry
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-line">
+                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                      Document
+                    </th>
+                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                      Uploaded By
+                    </th>
+                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
+                      Actions
+                    </th>
                   </tr>
-                ) : (
-                  visibleDocuments.map((doc) => {
-                    const Icon = TYPE_ICON[doc.type];
-                    return (
-                      <tr
-                        key={doc.id}
-                        className="border-b border-line last:border-b-0 hover:bg-line-soft/40 transition-colors"
-                      >
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div
+                </thead>
+                <tbody>
+                  {visibleDocuments.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-16">
+                        <div className="text-center">
+                          <Files
+                            className="w-8 h-8 mx-auto text-muted-2"
+                            strokeWidth={1.5}
+                          />
+                          <p className="mt-3 text-sm font-medium text-ink">
+                            No documents found
+                          </p>
+                          <p className="mt-1 text-[12.5px] text-muted">
+                            {filtersActive
+                              ? "Try clearing filters or adjusting your search."
+                              : "Upload your first document to get started."}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleDocuments.map((doc) => {
+                      const Icon = TYPE_ICON[TYPE_ICON_KIND[doc.type]];
+                      const busy = actionBusyId === doc.id;
+                      return (
+                        <tr
+                          key={doc.id}
+                          className="border-b border-line last:border-b-0 hover:bg-line-soft/40 transition-colors"
+                        >
+                          <td className="px-6 py-3.5">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={cn(
+                                  "w-9 h-9 rounded-[8px] flex items-center justify-center shrink-0",
+                                  TYPE_TONE[doc.type],
+                                )}
+                              >
+                                <Icon className="w-4 h-4" strokeWidth={1.75} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[13px] font-semibold text-ink truncate max-w-[280px]">
+                                  {doc.name}
+                                </p>
+                                <p className="text-[11px] text-muted">
+                                  {CATEGORY_LABEL[doc.category]}
+                                  {doc.size !== undefined
+                                    ? ` · ${formatBytes(doc.size)}`
+                                    : ""}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <span className="text-[12px] font-medium text-muted">
+                              {TYPE_LABEL[doc.type]}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="w-7 h-7 rounded-full bg-line-soft text-muted text-[10px] font-bold flex items-center justify-center">
+                                {doc.uploaderInitials}
+                              </span>
+                              <span className="text-[12.5px] text-ink">
+                                {doc.uploadedBy}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <span className="text-[12px] text-muted">
+                              {formatDate(doc.uploadedAt)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <span
                               className={cn(
-                                "w-9 h-9 rounded-[8px] flex items-center justify-center shrink-0",
-                                TYPE_TONE[doc.type],
+                                "px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider",
+                                STATUS_TONE[doc.status],
                               )}
                             >
-                              <Icon className="w-4 h-4" strokeWidth={1.75} />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-[13px] font-semibold text-ink truncate max-w-[280px]">
-                                {doc.name}
-                              </p>
-                              <p className="text-[11px] text-muted">
-                                {CATEGORY_LABEL[doc.category]} ·{" "}
-                                {formatBytes(doc.size)}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <span className="text-[12px] font-medium text-muted">
-                            {TYPE_LABEL[doc.type]}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-full bg-line-soft text-muted text-[10px] font-bold flex items-center justify-center">
-                              {doc.uploaderInitials}
+                              {STATUS_LABEL[doc.status]}
                             </span>
-                            <span className="text-[12.5px] text-ink">
-                              {doc.uploadedBy}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <span className="text-[12px] text-muted">
-                            {formatDate(doc.uploadedAt)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <span
-                            className={cn(
-                              "px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider",
-                              STATUS_TONE[doc.status],
-                            )}
-                          >
-                            {STATUS_LABEL[doc.status]}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3.5 text-right">
-                          <div className="inline-flex items-center justify-end gap-1 relative">
-                            {doc.status === "pending" && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => approveDocument(doc)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-(--color-success-fg) hover:bg-(--color-success-bg) transition-colors"
+                          </td>
+                          <td className="px-6 py-3.5 text-right">
+                            <div className="inline-flex items-center justify-end gap-1 relative">
+                              {isAdmin && doc.status === "pending" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => approveDocument(doc)}
+                                    disabled={busy}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-(--color-success-fg) hover:bg-(--color-success-bg) transition-colors disabled:opacity-50"
+                                  >
+                                    {busy ? (
+                                      <Loader2
+                                        className="w-3.5 h-3.5 animate-spin"
+                                        strokeWidth={2}
+                                      />
+                                    ) : (
+                                      <CheckCircle2
+                                        className="w-3.5 h-3.5"
+                                        strokeWidth={2}
+                                      />
+                                    )}
+                                    Approve
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setRejectTarget(doc)}
+                                    disabled={busy}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-(--color-danger-fg) hover:bg-(--color-danger-bg) transition-colors disabled:opacity-50"
+                                  >
+                                    <XCircle
+                                      className="w-3.5 h-3.5"
+                                      strokeWidth={2}
+                                    />
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setRowMenuId(
+                                    rowMenuId === doc.id ? null : doc.id,
+                                  )
+                                }
+                                className="p-1.5 rounded-md text-muted-2 hover:text-ink hover:bg-line-soft transition-colors"
+                                aria-label="More actions"
+                              >
+                                <MoreHorizontal
+                                  className="w-4 h-4"
+                                  strokeWidth={2}
+                                />
+                              </button>
+                              <Popover
+                                open={rowMenuId === doc.id}
+                                onClose={() => setRowMenuId(null)}
+                                align="right"
+                              >
+                                <PopoverItem
+                                  onClick={() => {
+                                    setViewing(doc);
+                                    setRowMenuId(null);
+                                  }}
                                 >
-                                  <CheckCircle2
-                                    className="w-3.5 h-3.5"
-                                    strokeWidth={2}
-                                  />
-                                  Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setRejectTarget(doc)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-(--color-danger-fg) hover:bg-(--color-danger-bg) transition-colors"
+                                  <span className="inline-flex items-center gap-2">
+                                    <Eye
+                                      className="w-3.5 h-3.5"
+                                      strokeWidth={2}
+                                    />
+                                    View
+                                  </span>
+                                </PopoverItem>
+                                <PopoverItem
+                                  onClick={() => downloadDocument(doc)}
                                 >
-                                  <XCircle
-                                    className="w-3.5 h-3.5"
-                                    strokeWidth={2}
-                                  />
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setRowMenuId(rowMenuId === doc.id ? null : doc.id)
-                              }
-                              className="p-1.5 rounded-md text-muted-2 hover:text-ink hover:bg-line-soft transition-colors"
-                              aria-label="More actions"
-                            >
-                              <MoreHorizontal
-                                className="w-4 h-4"
-                                strokeWidth={2}
-                              />
-                            </button>
-                            <Popover
-                              open={rowMenuId === doc.id}
-                              onClose={() => setRowMenuId(null)}
-                              align="right"
-                            >
-                              <PopoverItem
-                                onClick={() => {
-                                  setViewing(doc);
-                                  setRowMenuId(null);
-                                }}
-                              >
-                                <span className="inline-flex items-center gap-2">
-                                  <Eye className="w-3.5 h-3.5" strokeWidth={2} />
-                                  View
-                                </span>
-                              </PopoverItem>
-                              <PopoverItem
-                                onClick={() => {
-                                  downloadDocument(doc);
-                                  setRowMenuId(null);
-                                }}
-                              >
-                                <span className="inline-flex items-center gap-2">
-                                  <Download
-                                    className="w-3.5 h-3.5"
-                                    strokeWidth={2}
-                                  />
-                                  Download
-                                </span>
-                              </PopoverItem>
-                              <PopoverItem
-                                onClick={() => {
-                                  setDeleteTarget(doc);
-                                  setRowMenuId(null);
-                                }}
-                              >
-                                <span className="inline-flex items-center gap-2 text-red-600">
-                                  <Trash2
-                                    className="w-3.5 h-3.5"
-                                    strokeWidth={2}
-                                  />
-                                  Delete
-                                </span>
-                              </PopoverItem>
-                            </Popover>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                                  <span className="inline-flex items-center gap-2">
+                                    <Download
+                                      className="w-3.5 h-3.5"
+                                      strokeWidth={2}
+                                    />
+                                    Download
+                                  </span>
+                                </PopoverItem>
+                                <PopoverItem
+                                  onClick={() => {
+                                    setDeleteTarget(doc);
+                                    setRowMenuId(null);
+                                  }}
+                                >
+                                  <span className="inline-flex items-center gap-2 text-red-600">
+                                    <Trash2
+                                      className="w-3.5 h-3.5"
+                                      strokeWidth={2}
+                                    />
+                                    Delete
+                                  </span>
+                                </PopoverItem>
+                              </Popover>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <ActivityLog entries={activity.slice(0, 8)} />
@@ -888,7 +977,7 @@ const DocumentsPage = () => {
       <UploadDocumentModal
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        onSubmit={onUploadFile}
+        onSubmit={handleUpload}
       />
 
       <ViewDocumentModal
@@ -923,9 +1012,14 @@ const DocumentsPage = () => {
             <button
               type="button"
               onClick={deleteDocument}
-              className="inline-flex items-center justify-center gap-2 rounded-[6px] px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors bg-red-600 hover:bg-red-700 text-white"
+              disabled={actionBusyId === deleteTarget?.id}
+              className="inline-flex items-center justify-center gap-2 rounded-[6px] px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors bg-red-600 hover:bg-red-700 text-white disabled:opacity-70"
             >
-              <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+              {actionBusyId === deleteTarget?.id ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+              )}
               Delete
             </button>
           </>

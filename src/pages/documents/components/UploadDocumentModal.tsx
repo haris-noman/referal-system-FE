@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   UploadCloud,
   Loader2,
@@ -19,33 +19,41 @@ import {
 const ALL_EXT = [
   ...ACCEPTED_EXT.pdf,
   ...ACCEPTED_EXT.docx,
-  ...ACCEPTED_EXT.image,
+  ...ACCEPTED_EXT.png,
+  ...ACCEPTED_EXT.jpg,
 ];
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onSubmit: (file: File, category: DocumentCategory) => Promise<void> | void;
+  onSubmit: (data: {
+    file: File;
+    name: string;
+    category: DocumentCategory;
+  }) => Promise<void>;
 };
 
 const UploadDocumentModal = ({ open, onClose, onSubmit }: Props) => {
   const [file, setFile] = useState<File | null>(null);
-  const [category, setCategory] = useState<DocumentCategory>("identity");
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<DocumentCategory>("identity_proof");
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const reset = () => {
+  useEffect(() => {
+    if (!open) return;
     setFile(null);
-    setCategory("identity");
+    setName("");
+    setCategory("identity_proof");
     setError("");
     setDragOver(false);
     setSubmitting(false);
     if (fileRef.current) fileRef.current.value = "";
-  };
+  }, [open]);
 
   const accept = (f: File | null) => {
     if (!f) return;
@@ -54,11 +62,14 @@ const UploadDocumentModal = ({ open, onClose, onSubmit }: Props) => {
       return;
     }
     if (f.size > MAX_FILE_SIZE) {
-      setError("File must be 25MB or smaller.");
+      setError("File must be 20MB or smaller.");
       return;
     }
     setError("");
     setFile(f);
+    if (!name.trim()) {
+      setName(f.name.replace(/\.[^.]+$/, ""));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,16 +78,24 @@ const UploadDocumentModal = ({ open, onClose, onSubmit }: Props) => {
       setError("Please select a file to upload.");
       return;
     }
+    if (!name.trim()) {
+      setError("Please give the document a name.");
+      return;
+    }
     setSubmitting(true);
-    await onSubmit(file, category);
-    setSubmitting(false);
-    reset();
-    onClose();
+    setError("");
+    try {
+      await onSubmit({ file, name: name.trim(), category });
+      onClose();
+    } catch (err) {
+      setError((err as Error)?.message || "Upload failed. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const close = () => {
     if (submitting) return;
-    reset();
     onClose();
   };
 
@@ -123,7 +142,23 @@ const UploadDocumentModal = ({ open, onClose, onSubmit }: Props) => {
       <form id="upload-doc-form" onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="text-[12px] font-medium text-ink-soft block mb-1.5">
-            Category
+            Document Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (error) setError("");
+            }}
+            placeholder="e.g. Q1 Referral Agreement"
+            className="field"
+          />
+        </div>
+
+        <div>
+          <label className="text-[12px] font-medium text-ink-soft block mb-1.5">
+            Category <span className="text-red-500">*</span>
           </label>
           <select
             value={category}
@@ -142,7 +177,7 @@ const UploadDocumentModal = ({ open, onClose, onSubmit }: Props) => {
 
         <div>
           <label className="text-[12px] font-medium text-ink-soft block mb-1.5">
-            File
+            File <span className="text-red-500">*</span>
           </label>
           <input
             ref={fileRef}
@@ -211,7 +246,7 @@ const UploadDocumentModal = ({ open, onClose, onSubmit }: Props) => {
                 Click to upload or drag and drop
               </p>
               <p className="text-[11px] text-muted">
-                {ALL_EXT.join(", ")} · up to 25MB
+                {ALL_EXT.join(", ")} · up to 20MB
               </p>
             </button>
           )}
