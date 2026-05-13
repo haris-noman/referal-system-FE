@@ -178,14 +178,18 @@ const ProfileTab = () => {
       try {
         const raw = localStorage.getItem("user");
         const stored = raw ? JSON.parse(raw) : {};
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            ...stored,
-            full_name: updated.full_name,
-            email: updated.email,
-            role: updated.role,
-          }),
+        const merged = {
+          ...stored,
+          full_name: updated.full_name,
+          email: updated.email,
+          role: updated.role,
+          profile_image: updated.profile_image,
+          phone_number: updated.phone_number,
+        };
+        localStorage.setItem("user", JSON.stringify(merged));
+        // Notify the layout so the header avatar/name refresh immediately.
+        window.dispatchEvent(
+          new CustomEvent("profile-updated", { detail: merged }),
         );
       } catch {
         /* ignore */

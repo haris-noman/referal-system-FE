@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { NetworkPortalBadge } from "../ui/Logo";
-import api from "../../lib/api";
+import { settingsApi } from "../../lib/settingsApi";
 import { SearchProvider, useSearch } from "../../contexts/SearchContext";
 
 const NAV = [
@@ -62,6 +62,37 @@ const TITLES: Record<string, string> = {
 };
 
 const SEARCH_ENABLED_PATHS = new Set(["/dashboard", "/tracking"]);
+
+const HeaderAvatar = ({
+  src,
+  fallback,
+}: {
+  src?: string | null;
+  fallback: string;
+}) => {
+  const [failed, setFailed] = useState(false);
+  const showImage = !!src && !failed;
+
+  // Reset the failure flag when the user uploads a new image so we retry.
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  return (
+    <div className="w-8 h-8 rounded-full bg-line-soft border border-line flex items-center justify-center text-[11px] font-bold text-muted overflow-hidden shrink-0">
+      {showImage ? (
+        <img
+          src={src as string}
+          alt=""
+          className="w-full h-full object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span>{fallback}</span>
+      )}
+    </div>
+  );
+};
 
 const SidebarLink = ({
   icon: Icon,
@@ -184,15 +215,25 @@ const LayoutInner = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await api.get("/auth/profile/");
-        setUser(response.data);
-        localStorage.setItem("user", JSON.stringify(response.data));
+        const profile = await settingsApi.profile.get();
+        setUser(profile);
+        localStorage.setItem("user", JSON.stringify(profile));
       } catch (err) {
         console.error("Failed to fetch profile", err);
       }
     };
 
     fetchProfile();
+
+    // ProfileTab dispatches this after a successful save so the header
+    // avatar/name stay in sync without remounting the layout.
+    const onProfileUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setUser(detail);
+    };
+    window.addEventListener("profile-updated", onProfileUpdated);
+    return () =>
+      window.removeEventListener("profile-updated", onProfileUpdated);
   }, []);
 
   useEffect(() => {
@@ -317,9 +358,10 @@ const LayoutInner = () => {
                   {user?.role === "admin" ? "Administrator" : "Global Partner"}
                 </p>
               </div>
-              <div className="w-8 h-8 rounded-full bg-line-soft flex items-center justify-center text-[11px] font-bold text-muted">
-                {getInitials(user?.full_name || "Guest User")}
-              </div>
+              <HeaderAvatar
+                src={user?.profile_image}
+                fallback={getInitials(user?.full_name || "Guest User")}
+              />
             </div>
           </div>
         </header>

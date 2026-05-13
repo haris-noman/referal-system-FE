@@ -1,32 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import {
-  User,
-  Shield,
-  Bell,
-  Sliders,
-  Palette,
-} from "lucide-react";
+import { User, Shield, Bell, Sliders } from "lucide-react";
 import Tabs, { type TabItem } from "../../components/ui/Tabs";
 import ProfileTab from "./tabs/ProfileTab";
 import SecurityTab from "./tabs/SecurityTab";
 import NotificationsTab from "./tabs/NotificationsTab";
 import ReferralConfigTab from "./tabs/ReferralConfigTab";
-import AppearanceTab from "./tabs/AppearanceTab";
 
-type TabKey =
-  | "profile"
-  | "security"
-  | "notifications"
-  | "referral"
-  | "appearance";
+type TabKey = "profile" | "security" | "notifications" | "referral";
 
 const TABS: TabItem<TabKey>[] = [
   { value: "profile", label: "Profile", icon: User },
   { value: "security", label: "Security", icon: Shield },
   { value: "notifications", label: "Notifications", icon: Bell },
   { value: "referral", label: "Referral", icon: Sliders },
-  { value: "appearance", label: "Appearance", icon: Palette },
 ];
 
 const isTabKey = (v: string): v is TabKey =>
@@ -73,7 +60,6 @@ const SettingsPage = () => {
         {tab === "security" && <SecurityTab />}
         {tab === "notifications" && <NotificationsTab />}
         {tab === "referral" && <ReferralConfigTab />}
-        {tab === "appearance" && <AppearanceTab />}
       </div>
     </div>
   );
