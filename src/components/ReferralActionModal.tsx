@@ -267,7 +267,7 @@ const ReferralActionModal = ({
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-line flex items-center justify-end gap-2 bg-light-gray/40">
+        <div className="px-6 py-4 border-t border-line flex items-center justify-end gap-2 bg-line-soft/40">
           <button
             type="button"
             onClick={() => !isSubmitting && onClose()}

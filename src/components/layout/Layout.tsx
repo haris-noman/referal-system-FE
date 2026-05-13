@@ -76,13 +76,21 @@ const SidebarLink = ({
 }) => (
   <Link
     to={href}
+    aria-current={active ? "page" : undefined}
     className={cn(
-      "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+      "relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
       active
         ? "bg-line-soft text-ink font-semibold"
         : "text-muted hover:bg-line-soft hover:text-ink",
     )}
   >
+    {active && (
+      <span
+        aria-hidden
+        className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full"
+        style={{ backgroundColor: "var(--color-accent)" }}
+      />
+    )}
     <Icon className="w-[18px] h-[18px]" strokeWidth={1.75} />
     <span>{label}</span>
   </Link>
@@ -104,12 +112,19 @@ const SupportDropdown = ({ currentPath }: { currentPath: string }) => {
         aria-expanded={open}
         aria-controls="support-submenu"
         className={cn(
-          "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+          "relative w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
           inSupport
             ? "bg-line-soft text-ink font-semibold"
             : "text-muted hover:bg-line-soft hover:text-ink",
         )}
       >
+        {inSupport && (
+          <span
+            aria-hidden
+            className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full"
+            style={{ backgroundColor: "var(--color-accent)" }}
+          />
+        )}
         <HelpCircle className="w-[18px] h-[18px]" strokeWidth={1.75} />
         <span className="flex-1 text-left">Support</span>
         <ChevronDown
@@ -209,7 +224,7 @@ const LayoutInner = () => {
 
   return (
     <div className="flex min-h-screen bg-canvas">
-      <aside className="w-[232px] shrink-0 bg-white border-r border-line flex flex-col fixed h-screen z-20 overflow-y-auto">
+      <aside className="w-[232px] shrink-0 bg-surface border-r border-line flex flex-col fixed h-screen z-20 overflow-y-auto">
         <div className="px-6 pt-6 pb-8 flex items-center gap-3">
           <NetworkPortalBadge
             title="Network Portal"
@@ -244,7 +259,7 @@ const LayoutInner = () => {
       </aside>
 
       <main className="flex-1 ml-[232px] min-h-screen flex flex-col">
-        <header className="h-[60px] bg-white border-b border-line px-8 flex items-center justify-between sticky top-0 z-10">
+        <header className="h-[60px] bg-surface border-b border-line px-8 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-6">
             <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-ink">
               {title}
@@ -281,9 +296,16 @@ const LayoutInner = () => {
           </div>
 
           <div className="flex items-center gap-5">
-            <button className="relative text-muted hover:text-ink transition-colors">
+            <button
+              type="button"
+              aria-label="Notifications"
+              className="relative text-muted hover:text-ink transition-colors"
+            >
               <Bell className="w-[18px] h-[18px]" strokeWidth={1.75} />
-              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
+              <span
+                aria-hidden
+                className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-surface"
+              />
             </button>
             <div className="h-5 w-px bg-line" />
             <div className="flex items-center gap-3">

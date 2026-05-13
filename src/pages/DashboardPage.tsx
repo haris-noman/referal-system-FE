@@ -28,12 +28,41 @@ import { Link } from "react-router-dom";
 import { cn } from "../lib/utils";
 import api from "../lib/api";
 import { useSearch } from "../contexts/SearchContext";
+import { useTheme } from "../contexts/ThemeContext";
 import { exportCsv } from "../lib/exportCsv";
 import { Popover, PopoverItem } from "../components/ui/Popover";
 import ReferralActionModal, {
   type ReferralAction,
   type ReferralActionTarget,
 } from "../components/ReferralActionModal";
+
+/**
+ * Per-mode palette for the recharts bar chart. Recharts takes color values
+ * via props, not CSS, so we resolve them from the active theme. Light values
+ * mirror what the chart used before this refactor.
+ */
+const CHART_COLORS = {
+  light: {
+    grid: "#F1F2F4",
+    axisTick: "#9CA3AF",
+    cursor: "#F5F6F8",
+    tooltipBg: "#FFFFFF",
+    tooltipBorder: "#E5E7EB",
+    tooltipText: "#0B1220",
+    approved: "#0B1220",
+    pending: "#E5E7EB",
+  },
+  dark: {
+    grid: "#2A2F3A",
+    axisTick: "#9CA3AF",
+    cursor: "rgba(255,255,255,0.04)",
+    tooltipBg: "#161B22",
+    tooltipBorder: "#2A2F3A",
+    tooltipText: "#F3F4F6",
+    approved: "#F3F4F6",
+    pending: "#2A2F3A",
+  },
+} as const;
 
 type StatTone = "neutral" | "warning" | "info" | "success";
 
@@ -59,7 +88,7 @@ const StatCard = ({
 }) => (
   <div className="bg-white border border-line rounded-card p-5">
     <div className="flex items-start justify-between mb-6">
-      <div className="w-9 h-9 rounded-[8px] bg-light-gray flex items-center justify-center text-ink">
+      <div className="w-9 h-9 rounded-[8px] bg-line-soft flex items-center justify-center text-ink">
         <Icon className="w-4 h-4" strokeWidth={1.75} />
       </div>
       <span
@@ -143,6 +172,8 @@ const DashboardPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const { query } = useSearch();
+  const { resolvedDark } = useTheme();
+  const chartPalette = resolvedDark ? CHART_COLORS.dark : CHART_COLORS.light;
   const [sortValue, setSortValue] = useState<`${SortKey}:${SortDir}`>(
     "submitted_at:desc",
   );
@@ -375,14 +406,14 @@ const DashboardPage = () => {
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
-                  stroke="#F1F2F4"
+                  stroke={chartPalette.grid}
                 />
                 <XAxis
                   dataKey="name"
                   axisLine={false}
                   tickLine={false}
                   tick={{
-                    fill: "#9CA3AF",
+                    fill: chartPalette.axisTick,
                     fontSize: 10,
                     fontWeight: 600,
                     letterSpacing: 1,
@@ -392,26 +423,34 @@ const DashboardPage = () => {
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "#9CA3AF", fontSize: 10, fontWeight: 500 }}
+                  tick={{
+                    fill: chartPalette.axisTick,
+                    fontSize: 10,
+                    fontWeight: 500,
+                  }}
                 />
                 <Tooltip
-                  cursor={{ fill: "#F5F6F8" }}
+                  cursor={{ fill: chartPalette.cursor }}
                   contentStyle={{
                     borderRadius: "8px",
-                    border: "1px solid #E5E7EB",
+                    border: `1px solid ${chartPalette.tooltipBorder}`,
+                    backgroundColor: chartPalette.tooltipBg,
+                    color: chartPalette.tooltipText,
                     fontSize: "12px",
                   }}
+                  labelStyle={{ color: chartPalette.tooltipText }}
+                  itemStyle={{ color: chartPalette.tooltipText }}
                 />
                 <Legend wrapperStyle={{ display: "none" }} />
                 <Bar
                   dataKey="approved"
-                  fill="#0B1220"
+                  fill={chartPalette.approved}
                   radius={[3, 3, 0, 0]}
                   barSize={14}
                 />
                 <Bar
                   dataKey="pending"
-                  fill="#E5E7EB"
+                  fill={chartPalette.pending}
                   radius={[3, 3, 0, 0]}
                   barSize={14}
                 />
@@ -429,7 +468,7 @@ const DashboardPage = () => {
           <div className="space-y-5 flex-1">
             {activities.length > 0 ? activities.map((a, i) => (
               <div key={i} className="flex gap-3">
-                <div className="w-7 h-7 rounded-full bg-light-gray flex items-center justify-center text-ink shrink-0">
+                <div className="w-7 h-7 rounded-full bg-line-soft flex items-center justify-center text-ink shrink-0">
                   {(() => {
                     const Icon = ACTIVITY_ICONS[a.action] || FileText;
                     return <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />;
