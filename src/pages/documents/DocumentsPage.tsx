@@ -24,7 +24,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { Popover, PopoverItem } from "../../components/ui/Popover";
+import { Popover, PopoverItem, PortalMenu } from "../../components/ui/Popover";
 import Modal from "../../components/ui/Modal";
 import UploadDocumentModal from "./components/UploadDocumentModal";
 import RejectDocumentModal from "./components/RejectDocumentModal";
@@ -152,6 +152,111 @@ const StatCard = ({
   </div>
 );
 
+const DocumentRowActions = ({
+  doc,
+  busy,
+  isAdmin,
+  onApprove,
+  onReject,
+  onView,
+  onDownload,
+  onDelete,
+}: {
+  doc: DocumentItem;
+  busy: boolean;
+  isAdmin: boolean;
+  onApprove: () => void;
+  onReject: () => void;
+  onView: () => void;
+  onDownload: () => void;
+  onDelete: () => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <div className="inline-flex items-center justify-end gap-1">
+      {isAdmin && doc.status === "pending" && (
+        <>
+          <button
+            type="button"
+            onClick={onApprove}
+            disabled={busy}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-(--color-success-fg) hover:bg-(--color-success-bg) transition-colors disabled:opacity-50"
+          >
+            {busy ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
+            ) : (
+              <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2} />
+            )}
+            Approve
+          </button>
+          <button
+            type="button"
+            onClick={onReject}
+            disabled={busy}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-(--color-danger-fg) hover:bg-(--color-danger-bg) transition-colors disabled:opacity-50"
+          >
+            <XCircle className="w-3.5 h-3.5" strokeWidth={2} />
+            Reject
+          </button>
+        </>
+      )}
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="p-1.5 rounded-md text-muted-2 hover:text-ink hover:bg-line-soft transition-colors"
+        aria-label="More actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <MoreHorizontal className="w-4 h-4" strokeWidth={2} />
+      </button>
+      <PortalMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchorRef={buttonRef}
+        align="right"
+      >
+        <PopoverItem
+          onClick={() => {
+            setOpen(false);
+            onView();
+          }}
+        >
+          <span className="inline-flex items-center gap-2">
+            <Eye className="w-3.5 h-3.5" strokeWidth={2} />
+            View
+          </span>
+        </PopoverItem>
+        <PopoverItem
+          onClick={() => {
+            setOpen(false);
+            onDownload();
+          }}
+        >
+          <span className="inline-flex items-center gap-2">
+            <Download className="w-3.5 h-3.5" strokeWidth={2} />
+            Download
+          </span>
+        </PopoverItem>
+        <PopoverItem
+          onClick={() => {
+            setOpen(false);
+            onDelete();
+          }}
+        >
+          <span className="inline-flex items-center gap-2 text-red-600">
+            <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+            Delete
+          </span>
+        </PopoverItem>
+      </PortalMenu>
+    </div>
+  );
+};
+
 const DocumentsPage = () => {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [summary, setSummary] = useState<ApiDocumentSummary | null>(null);
@@ -175,8 +280,6 @@ const DocumentsPage = () => {
   const [dateOpen, setDateOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [rowMenuId, setRowMenuId] = useState<number | null>(null);
-
   const [uploadOpen, setUploadOpen] = useState(false);
   const [viewing, setViewing] = useState<DocumentItem | null>(null);
   const [rejectTarget, setRejectTarget] = useState<DocumentItem | null>(null);
@@ -355,7 +458,6 @@ const DocumentsPage = () => {
       setActionError(extractApiError(err, "Failed to approve document."));
     } finally {
       setActionBusyId(null);
-      setRowMenuId(null);
     }
   };
 
@@ -410,7 +512,6 @@ const DocumentsPage = () => {
       setActionError(extractApiError(err, "Failed to download document."));
     } finally {
       setActionBusyId(null);
-      setRowMenuId(null);
     }
   };
 
@@ -863,103 +964,16 @@ const DocumentsPage = () => {
                             </span>
                           </td>
                           <td className="px-6 py-3.5 text-right">
-                            <div className="inline-flex items-center justify-end gap-1 relative">
-                              {isAdmin && doc.status === "pending" && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => approveDocument(doc)}
-                                    disabled={busy}
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-(--color-success-fg) hover:bg-(--color-success-bg) transition-colors disabled:opacity-50"
-                                  >
-                                    {busy ? (
-                                      <Loader2
-                                        className="w-3.5 h-3.5 animate-spin"
-                                        strokeWidth={2}
-                                      />
-                                    ) : (
-                                      <CheckCircle2
-                                        className="w-3.5 h-3.5"
-                                        strokeWidth={2}
-                                      />
-                                    )}
-                                    Approve
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setRejectTarget(doc)}
-                                    disabled={busy}
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-(--color-danger-fg) hover:bg-(--color-danger-bg) transition-colors disabled:opacity-50"
-                                  >
-                                    <XCircle
-                                      className="w-3.5 h-3.5"
-                                      strokeWidth={2}
-                                    />
-                                    Reject
-                                  </button>
-                                </>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setRowMenuId(
-                                    rowMenuId === doc.id ? null : doc.id,
-                                  )
-                                }
-                                className="p-1.5 rounded-md text-muted-2 hover:text-ink hover:bg-line-soft transition-colors"
-                                aria-label="More actions"
-                              >
-                                <MoreHorizontal
-                                  className="w-4 h-4"
-                                  strokeWidth={2}
-                                />
-                              </button>
-                              <Popover
-                                open={rowMenuId === doc.id}
-                                onClose={() => setRowMenuId(null)}
-                                align="right"
-                              >
-                                <PopoverItem
-                                  onClick={() => {
-                                    setViewing(doc);
-                                    setRowMenuId(null);
-                                  }}
-                                >
-                                  <span className="inline-flex items-center gap-2">
-                                    <Eye
-                                      className="w-3.5 h-3.5"
-                                      strokeWidth={2}
-                                    />
-                                    View
-                                  </span>
-                                </PopoverItem>
-                                <PopoverItem
-                                  onClick={() => downloadDocument(doc)}
-                                >
-                                  <span className="inline-flex items-center gap-2">
-                                    <Download
-                                      className="w-3.5 h-3.5"
-                                      strokeWidth={2}
-                                    />
-                                    Download
-                                  </span>
-                                </PopoverItem>
-                                <PopoverItem
-                                  onClick={() => {
-                                    setDeleteTarget(doc);
-                                    setRowMenuId(null);
-                                  }}
-                                >
-                                  <span className="inline-flex items-center gap-2 text-red-600">
-                                    <Trash2
-                                      className="w-3.5 h-3.5"
-                                      strokeWidth={2}
-                                    />
-                                    Delete
-                                  </span>
-                                </PopoverItem>
-                              </Popover>
-                            </div>
+                            <DocumentRowActions
+                              doc={doc}
+                              busy={busy}
+                              isAdmin={isAdmin}
+                              onApprove={() => approveDocument(doc)}
+                              onReject={() => setRejectTarget(doc)}
+                              onView={() => setViewing(doc)}
+                              onDownload={() => downloadDocument(doc)}
+                              onDelete={() => setDeleteTarget(doc)}
+                            />
                           </td>
                         </tr>
                       );
