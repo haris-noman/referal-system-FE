@@ -36,9 +36,12 @@ function Tabs<T extends string>({ tabs, value, onChange, className }: Props<T>) 
             className={cn(
               "inline-flex items-center gap-2 px-3.5 py-2 rounded-[6px] text-[12.5px] font-medium transition-colors",
               active
-                ? "bg-ink text-white"
+                ? "text-white"
                 : "text-muted hover:bg-line-soft hover:text-ink",
             )}
+            style={
+              active ? { backgroundColor: "var(--color-accent)" } : undefined
+            }
           >
             {Icon && <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />}
             <span>{tab.label}</span>

@@ -21,8 +21,37 @@
   --color-neutral-bg: #f1f2f4;
   --color-neutral-fg: #4b5563;
 
+  --color-accent: #0b1220;
+
   --radius-card: 10px;
   --radius-control: 6px;
+}
+
+/* ---- Dark mode overrides ----
+   We re-bind the same semantic tokens under `.dark` so every
+   `bg-(--color-canvas)`, `text-ink`, `border-line` etc. flips automatically.
+   This keeps existing components untouched while still delivering a real
+   dark experience. */
+:root.dark {
+  --color-ink: #f3f4f6;
+  --color-ink-soft: #d1d5db;
+  --color-muted: #9ca3af;
+  --color-muted-2: #6b7280;
+  --color-line: #2a2f3a;
+  --color-line-soft: #1f242d;
+  --color-surface: #161b22;
+  --color-canvas: #0d1117;
+
+  --color-success-bg: #064e3b40;
+  --color-success-fg: #4ade80;
+  --color-warning-bg: #78350f40;
+  --color-warning-fg: #fbbf24;
+  --color-info-bg: #1e3a8a40;
+  --color-info-fg: #93c5fd;
+  --color-danger-bg: #7f1d1d40;
+  --color-danger-fg: #fca5a5;
+  --color-neutral-bg: #1f242d;
+  --color-neutral-fg: #d1d5db;
 }
 
 @layer base {
@@ -48,6 +77,16 @@
   button {
     font-family: inherit;
   }
+
+  /* Adapter rules: many components were authored with raw `bg-white` /
+     hard-coded page colors. Translate them to semantic tokens in dark mode
+     so the surface flips without us editing every file. */
+  :root.dark .bg-white {
+    background-color: var(--color-surface);
+  }
+  :root.dark .bg-\[\#FCF8FA\] {
+    background-color: var(--color-canvas);
+  }
 }
 
 @layer components {
@@ -62,9 +101,20 @@
   .field {
     @apply w-full bg-white border border-[color:var(--color-line)] rounded-[6px] py-2.5 px-3 text-sm text-[color:var(--color-ink)] placeholder:text-[color:var(--color-muted-2)] focus:outline-none focus:border-[color:var(--color-ink)] transition-colors;
   }
+  .field:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-[6px] px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors disabled:opacity-50 disabled:pointer-events-none bg-[color:var(--color-ink)] text-white hover:bg-black;
+    @apply inline-flex items-center justify-center gap-2 rounded-[6px] px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors disabled:opacity-50 disabled:pointer-events-none text-white;
+    background-color: var(--color-accent);
+  }
+  .btn-primary:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 85%, black);
+  }
+  .btn-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
   }
 
   .btn-secondary {

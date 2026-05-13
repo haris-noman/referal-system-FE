@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Sun,
   Moon,
+  Monitor,
   Languages,
   Palette,
   Save,
@@ -17,11 +18,33 @@ import {
   type ApiAppearance,
   type AppearanceLanguage,
 } from "../../../lib/settingsApi";
+import { useTheme, type ThemeMode } from "../../../contexts/ThemeContext";
 
-const THEME_OPTIONS = [
-  { value: false, label: "Light", icon: Sun },
-  { value: true, label: "Dark", icon: Moon },
-] as const;
+const THEME_OPTIONS: {
+  value: ThemeMode;
+  label: string;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  description: string;
+}[] = [
+  {
+    value: "light",
+    label: "Light",
+    icon: Sun,
+    description: "Always use the light interface.",
+  },
+  {
+    value: "dark",
+    label: "Dark",
+    icon: Moon,
+    description: "Easier on the eyes in low light.",
+  },
+  {
+    value: "system",
+    label: "System",
+    icon: Monitor,
+    description: "Match your operating system.",
+  },
+];
 
 const LANGUAGES: { value: AppearanceLanguage; label: string; region: string }[] = [
   { value: "en", label: "English", region: "United States" },
@@ -41,15 +64,37 @@ const ACCENT_COLORS = [
   { value: "#db2777", label: "Rose" },
 ];
 
-const DEFAULTS: ApiAppearance = {
-  dark_mode: false,
-  language: "en",
-  theme_color: ACCENT_COLORS[0].value,
+type FormState = {
+  mode: ThemeMode;
+  language: AppearanceLanguage;
+  accent: string;
+};
+
+/**
+ * Reconciles the API value (`dark_mode` boolean) with the locally-persisted
+ * `mode` ("light"/"dark"/"system"). If the user previously chose "system" and
+ * the API stored the *resolved* dark value, we preserve that "system" intent.
+ */
+const reconcileMode = (api: ApiAppearance, localMode: ThemeMode): ThemeMode => {
+  if (localMode === "system") {
+    const isDark =
+      typeof window !== "undefined" && window.matchMedia
+        ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        : false;
+    if (isDark === api.dark_mode) return "system";
+  }
+  return api.dark_mode ? "dark" : "light";
 };
 
 const AppearanceTab = () => {
-  const [form, setForm] = useState<ApiAppearance>(DEFAULTS);
-  const [original, setOriginal] = useState<ApiAppearance | null>(null);
+  const theme = useTheme();
+
+  const [form, setForm] = useState<FormState>({
+    mode: theme.mode,
+    language: "en",
+    accent: theme.accent,
+  });
+  const [original, setOriginal] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -62,8 +107,16 @@ const AppearanceTab = () => {
       try {
         const data = await settingsApi.appearance.get();
         if (cancelled) return;
-        setForm(data);
-        setOriginal(data);
+        const next: FormState = {
+          mode: reconcileMode(data, theme.mode),
+          language: data.language ?? "en",
+          accent: data.theme_color || theme.accent,
+        };
+        setForm(next);
+        setOriginal(next);
+        // Apply server values to the live UI so saved preferences from
+        // another device take effect immediately.
+        theme.setPrefs({ mode: next.mode, accent: next.accent });
       } catch (err) {
         if (!cancelled)
           setLoadError(
@@ -76,30 +129,66 @@ const AppearanceTab = () => {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const update = <K extends keyof ApiAppearance>(
-    key: K,
-    value: ApiAppearance[K],
-  ) => {
-    setForm((p) => ({ ...p, [key]: value }));
+  const setMode = (mode: ThemeMode) => {
+    setForm((p) => ({ ...p, mode }));
+    theme.setMode(mode);
     setSaved(false);
     setSubmitError(null);
   };
 
-  const isDirty =
-    !!original &&
-    (Object.keys(form) as (keyof ApiAppearance)[]).some(
-      (k) => form[k] !== original[k],
+  const setAccent = (accent: string) => {
+    setForm((p) => ({ ...p, accent }));
+    theme.setAccent(accent);
+    setSaved(false);
+    setSubmitError(null);
+  };
+
+  const setLanguage = (language: AppearanceLanguage) => {
+    setForm((p) => ({ ...p, language }));
+    setSaved(false);
+    setSubmitError(null);
+  };
+
+  const isDirty = useMemo(() => {
+    if (!original) return false;
+    return (
+      form.mode !== original.mode ||
+      form.language !== original.language ||
+      form.accent.toLowerCase() !== original.accent.toLowerCase()
     );
+  }, [form, original]);
 
   const onSave = async () => {
+    if (!isDirty) return;
     setSaving(true);
     setSubmitError(null);
+
+    // The API only stores `dark_mode` as a boolean — resolve "system" against
+    // the OS preference at save time.
+    const darkMode =
+      form.mode === "dark" ||
+      (form.mode === "system" &&
+        typeof window !== "undefined" &&
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+
     try {
-      const updated = await settingsApi.appearance.update(form);
-      setForm(updated);
-      setOriginal(updated);
+      const updated = await settingsApi.appearance.update({
+        dark_mode: darkMode,
+        language: form.language,
+        theme_color: form.accent,
+      });
+      const next: FormState = {
+        mode: reconcileMode(updated, form.mode),
+        language: updated.language ?? form.language,
+        accent: updated.theme_color || form.accent,
+      };
+      setForm(next);
+      setOriginal(next);
+      theme.setPrefs({ mode: next.mode, accent: next.accent });
       setSaved(true);
       window.setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -135,24 +224,30 @@ const AppearanceTab = () => {
     <div className="space-y-5">
       <SettingCard
         title="Theme"
-        description="Choose how the portal looks across the network."
+        description="Choose how the portal looks. Changes apply instantly across the app."
         icon={Sun}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {THEME_OPTIONS.map((opt) => {
             const Icon = opt.icon;
-            const active = form.dark_mode === opt.value;
+            const active = form.mode === opt.value;
             return (
               <button
                 type="button"
-                key={opt.label}
-                onClick={() => update("dark_mode", opt.value)}
+                key={opt.value}
+                onClick={() => setMode(opt.value)}
+                aria-pressed={active}
                 className={cn(
                   "p-4 rounded-card border text-left transition-all",
                   active
-                    ? "border-ink bg-ink text-white shadow-sm"
+                    ? "border-transparent shadow-sm text-white"
                     : "border-line bg-white hover:border-ink-soft",
                 )}
+                style={
+                  active
+                    ? { backgroundColor: "var(--color-accent)" }
+                    : undefined
+                }
               >
                 <div className="flex items-center justify-between">
                   <span
@@ -177,10 +272,27 @@ const AppearanceTab = () => {
                 >
                   {opt.label}
                 </p>
+                <p
+                  className={cn(
+                    "text-[11px] mt-0.5",
+                    active ? "text-white/80" : "text-muted",
+                  )}
+                >
+                  {opt.description}
+                </p>
               </button>
             );
           })}
         </div>
+        {form.mode === "system" && (
+          <p className="mt-3 text-[11px] text-muted-2">
+            Currently rendering in{" "}
+            <span className="font-semibold text-ink">
+              {theme.resolvedDark ? "dark" : "light"}
+            </span>{" "}
+            mode based on your device.
+          </p>
+        )}
       </SettingCard>
 
       <SettingCard
@@ -195,9 +307,7 @@ const AppearanceTab = () => {
         >
           <select
             value={form.language}
-            onChange={(e) =>
-              update("language", e.target.value as AppearanceLanguage)
-            }
+            onChange={(e) => setLanguage(e.target.value as AppearanceLanguage)}
             className="field w-56"
           >
             {LANGUAGES.map((l) => (
@@ -211,17 +321,17 @@ const AppearanceTab = () => {
 
       <SettingCard
         title="Accent Color"
-        description="Pick a brand accent. The current accent is highlighted."
+        description="Pick a brand accent. Buttons, tabs, and active states pick it up immediately."
         icon={Palette}
       >
         <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
           {ACCENT_COLORS.map((c) => {
-            const active = form.theme_color.toLowerCase() === c.value.toLowerCase();
+            const active = form.accent.toLowerCase() === c.value.toLowerCase();
             return (
               <button
                 type="button"
                 key={c.value}
-                onClick={() => update("theme_color", c.value)}
+                onClick={() => setAccent(c.value)}
                 className="flex flex-col items-center gap-1.5 group"
                 aria-label={c.label}
                 aria-pressed={active}
@@ -248,6 +358,34 @@ const AppearanceTab = () => {
               </button>
             );
           })}
+        </div>
+
+        <div className="mt-5 pt-5 border-t border-line">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted mb-3">
+            Preview
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" className="btn-primary">
+              Primary Action
+            </button>
+            <button type="button" className="btn-secondary">
+              Secondary
+            </button>
+            <span
+              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-white"
+              style={{ backgroundColor: "var(--color-accent)" }}
+            >
+              Active Badge
+            </span>
+            <a
+              href="#preview"
+              onClick={(e) => e.preventDefault()}
+              className="text-[12px] font-semibold underline decoration-2 underline-offset-2"
+              style={{ color: "var(--color-accent)" }}
+            >
+              Sample Link
+            </a>
+          </div>
         </div>
       </SettingCard>
 

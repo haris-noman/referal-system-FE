@@ -5,6 +5,30 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Referal System</title>
+    <script>
+      // Apply persisted theme + accent BEFORE the React app paints so we
+      // avoid a light->dark flash on cold loads. Mirrors the logic that the
+      // ThemeProvider runs after hydration.
+      (function () {
+        try {
+          var raw = localStorage.getItem("theme.prefs");
+          var prefs = raw ? JSON.parse(raw) : {};
+          var mode = prefs.mode || "system";
+          var accent = prefs.accent || "#0b1220";
+          var isDark =
+            mode === "dark" ||
+            (mode === "system" &&
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var root = document.documentElement;
+          if (isDark) root.classList.add("dark");
+          root.setAttribute("data-theme", isDark ? "dark" : "light");
+          root.style.setProperty("--color-accent", accent);
+        } catch (_) {
+          /* ignore */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
