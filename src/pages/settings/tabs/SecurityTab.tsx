@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Shield,
   Lock,
@@ -17,55 +17,49 @@ import { cn } from "../../../lib/utils";
 import { SettingCard, Field, SettingRow } from "../../../components/settings/SettingCard";
 import Toggle from "../../../components/ui/Toggle";
 import Modal from "../../../components/ui/Modal";
+import {
+  settingsApi,
+  extractSettingsError,
+  type ApiSession,
+} from "../../../lib/settingsApi";
 
-type Session = {
-  id: string;
-  device: "desktop" | "mobile" | "tablet";
-  label: string;
-  location: string;
-  lastActive: string;
-  current?: boolean;
-};
+type DeviceKind = "desktop" | "mobile" | "tablet";
 
-const SESSIONS: Session[] = [
-  {
-    id: "s-1",
-    device: "desktop",
-    label: "Chrome on macOS",
-    location: "San Francisco, US",
-    lastActive: "Active now",
-    current: true,
-  },
-  {
-    id: "s-2",
-    device: "mobile",
-    label: "Safari on iPhone 15",
-    location: "San Francisco, US",
-    lastActive: "2 hours ago",
-  },
-  {
-    id: "s-3",
-    device: "tablet",
-    label: "Chrome on iPad Air",
-    location: "Oakland, US",
-    lastActive: "Yesterday",
-  },
-  {
-    id: "s-4",
-    device: "desktop",
-    label: "Firefox on Windows",
-    location: "Austin, US",
-    lastActive: "3 days ago",
-  },
-];
-
-const DEVICE_ICON = {
+const DEVICE_ICON: Record<DeviceKind, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
   desktop: Monitor,
   mobile: Smartphone,
   tablet: Tablet,
-} as const;
+};
 
-const scorePassword = (pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string; tone: string } => {
+const detectDevice = (info: string): DeviceKind => {
+  const s = info.toLowerCase();
+  if (/(ipad|tablet)/.test(s)) return "tablet";
+  if (/(iphone|android|mobile|phone)/.test(s)) return "mobile";
+  return "desktop";
+};
+
+const relativeTime = (iso: string): string => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const diff = Date.now() - d.getTime();
+  const min = Math.round(diff / 60_000);
+  if (min < 1) return "Just now";
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
+  const day = Math.round(hr / 24);
+  if (day < 30) return `${day} day${day === 1 ? "" : "s"} ago`;
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const scorePassword = (
+  pw: string,
+): { score: 0 | 1 | 2 | 3 | 4; label: string; tone: string } => {
   let score = 0;
   if (pw.length >= 8) score++;
   if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
@@ -81,23 +75,76 @@ const scorePassword = (pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string; t
   return { score: score as 0 | 1 | 2 | 3 | 4, ...map[score] };
 };
 
+type PwState = { current: string; next: string; confirm: string };
+
 const SecurityTab = () => {
-  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
-  const [pwErrors, setPwErrors] = useState<Partial<Record<keyof typeof pw, string>>>({});
-  const [reveal, setReveal] = useState({ current: false, next: false, confirm: false });
+  // Password
+  const [pw, setPw] = useState<PwState>({ current: "", next: "", confirm: "" });
+  const [pwErrors, setPwErrors] = useState<
+    Partial<Record<keyof PwState, string>>
+  >({});
+  const [reveal, setReveal] = useState({
+    current: false,
+    next: false,
+    confirm: false,
+  });
   const [pwSaving, setPwSaving] = useState(false);
   const [pwSaved, setPwSaved] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
 
-  const [twoFA, setTwoFA] = useState(true);
-  const [sessions, setSessions] = useState(SESSIONS);
+  // 2FA
+  const [twoFA, setTwoFA] = useState<boolean | null>(null);
+  const [twoFASaving, setTwoFASaving] = useState(false);
+  const [twoFAError, setTwoFAError] = useState<string | null>(null);
+
+  // Sessions
+  const [sessions, setSessions] = useState<ApiSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+
+  const fetchSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError(null);
+    try {
+      const page = await settingsApi.sessions.list();
+      setSessions(page.results.filter((s) => s.is_active));
+    } catch (err) {
+      setSessionsError(
+        extractSettingsError(err, "Failed to load active sessions."),
+      );
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await settingsApi.twoFactor.get();
+        if (!cancelled) setTwoFA(data.two_factor_enabled);
+      } catch (err) {
+        if (!cancelled)
+          setTwoFAError(
+            extractSettingsError(err, "Failed to load 2FA status."),
+          );
+      }
+    })();
+    fetchSessions();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchSessions]);
 
   const strength = useMemo(() => scorePassword(pw.next), [pw.next]);
 
-  const updatePw = <K extends keyof typeof pw>(key: K, value: string) => {
+  const updatePw = (key: keyof PwState, value: string) => {
     setPw((p) => ({ ...p, [key]: value }));
     if (pwErrors[key]) setPwErrors((p) => ({ ...p, [key]: undefined }));
     setPwSaved(false);
+    setPwError(null);
   };
 
   const onChangePassword = async (e: React.FormEvent) => {
@@ -110,20 +157,54 @@ const SecurityTab = () => {
     if (Object.keys(next).length) return;
 
     setPwSaving(true);
-    await new Promise((r) => setTimeout(r, 700));
-    setPwSaving(false);
-    setPw({ current: "", next: "", confirm: "" });
-    setPwSaved(true);
-    setTimeout(() => setPwSaved(false), 2500);
+    setPwError(null);
+    try {
+      await settingsApi.changePassword({
+        current_password: pw.current,
+        new_password: pw.next,
+        confirm_password: pw.confirm,
+      });
+      setPw({ current: "", next: "", confirm: "" });
+      setPwSaved(true);
+      window.setTimeout(() => setPwSaved(false), 2500);
+    } catch (err) {
+      setPwError(extractSettingsError(err, "Failed to change password."));
+    } finally {
+      setPwSaving(false);
+    }
   };
 
-  const revokeSession = (id: string) => {
-    setSessions((s) => s.filter((sess) => sess.id !== id));
+  const toggleTwoFA = async (value: boolean) => {
+    const previous = twoFA;
+    setTwoFA(value);
+    setTwoFASaving(true);
+    setTwoFAError(null);
+    try {
+      const data = await settingsApi.twoFactor.set(value);
+      setTwoFA(data.two_factor_enabled);
+    } catch (err) {
+      setTwoFA(previous ?? false);
+      setTwoFAError(
+        extractSettingsError(err, "Failed to update 2FA setting."),
+      );
+    } finally {
+      setTwoFASaving(false);
+    }
   };
 
-  const logoutAll = () => {
-    setSessions((s) => s.filter((sess) => sess.current));
-    setConfirmLogout(false);
+  const logoutAll = async () => {
+    setLogoutBusy(true);
+    try {
+      await settingsApi.sessions.logoutAll();
+      setConfirmLogout(false);
+      fetchSessions();
+    } catch (err) {
+      setSessionsError(
+        extractSettingsError(err, "Failed to log out all devices."),
+      );
+    } finally {
+      setLogoutBusy(false);
+    }
   };
 
   return (
@@ -152,14 +233,21 @@ const SecurityTab = () => {
                 <div className="relative">
                   <input
                     type={reveal[key] ? "text" : "password"}
-                    className={cn("field pr-10", pwErrors[key] && "border-red-500")}
+                    className={cn(
+                      "field pr-10",
+                      pwErrors[key] && "border-red-500",
+                    )}
                     value={pw[key]}
                     onChange={(e) => updatePw(key, e.target.value)}
-                    autoComplete={key === "current" ? "current-password" : "new-password"}
+                    autoComplete={
+                      key === "current" ? "current-password" : "new-password"
+                    }
                   />
                   <button
                     type="button"
-                    onClick={() => setReveal((r) => ({ ...r, [key]: !r[key] }))}
+                    onClick={() =>
+                      setReveal((r) => ({ ...r, [key]: !r[key] }))
+                    }
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-2 hover:text-ink hover:bg-line-soft transition-colors"
                     aria-label={reveal[key] ? "Hide password" : "Show password"}
                   >
@@ -189,6 +277,13 @@ const SecurityTab = () => {
               </Field>
             );
           })}
+
+          {pwError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-[6px] px-3 py-2 flex items-center gap-2 text-[12px] max-w-md">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+              {pwError}
+            </div>
+          )}
 
           <div className="flex items-center gap-3 pt-1">
             {pwSaved && (
@@ -220,31 +315,48 @@ const SecurityTab = () => {
 
       <SettingCard
         title="Two-Factor Authentication"
-        description="Add an extra layer of protection by requiring a code at sign-in."
+        description="Add an extra layer of protection by requiring a one-time code at sign-in."
         icon={Shield}
       >
         <SettingRow
           label={twoFA ? "Two-factor is enabled" : "Two-factor is disabled"}
           description={
             twoFA
-              ? "Codes are delivered through your authenticator app."
+              ? "We'll email a 6-digit code each time you sign in."
               : "Enable to protect your account from unauthorized access."
           }
         >
           <div className="flex items-center gap-3">
-            <span
-              className={cn(
-                "px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.08em]",
-                twoFA
-                  ? "bg-(--color-success-bg) text-(--color-success-fg)"
-                  : "bg-(--color-neutral-bg) text-(--color-neutral-fg)",
-              )}
-            >
-              {twoFA ? "On" : "Off"}
-            </span>
-            <Toggle checked={twoFA} onChange={setTwoFA} />
+            {twoFA === null ? (
+              <Loader2
+                className="w-3.5 h-3.5 animate-spin text-muted"
+                strokeWidth={2}
+              />
+            ) : (
+              <span
+                className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.08em]",
+                  twoFA
+                    ? "bg-(--color-success-bg) text-(--color-success-fg)"
+                    : "bg-(--color-neutral-bg) text-(--color-neutral-fg)",
+                )}
+              >
+                {twoFA ? "On" : "Off"}
+              </span>
+            )}
+            <Toggle
+              checked={!!twoFA}
+              onChange={toggleTwoFA}
+              disabled={twoFA === null || twoFASaving}
+            />
           </div>
         </SettingRow>
+        {twoFAError && (
+          <div className="mt-3 bg-red-50 border border-red-200 text-red-700 rounded-[6px] px-3 py-2 flex items-center gap-2 text-[12px]">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+            {twoFAError}
+          </div>
+        )}
       </SettingCard>
 
       <SettingCard
@@ -255,64 +367,84 @@ const SecurityTab = () => {
           <button
             type="button"
             onClick={() => setConfirmLogout(true)}
-            className="btn-secondary"
+            disabled={sessions.length === 0}
+            className="btn-secondary disabled:opacity-60"
           >
             <LogOut className="w-3.5 h-3.5" strokeWidth={2} />
             Logout All Devices
           </button>
         }
       >
-        <ul className="divide-y divide-line">
-          {sessions.map((s) => {
-            const Icon = DEVICE_ICON[s.device];
-            return (
-              <li key={s.id} className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0">
-                <div className="w-9 h-9 rounded-[8px] bg-line-soft text-ink flex items-center justify-center shrink-0">
-                  <Icon className="w-4 h-4" strokeWidth={1.75} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-[13px] font-semibold text-ink truncate">
-                      {s.label}
-                    </p>
-                    {s.current && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.08em] bg-(--color-success-bg) text-(--color-success-fg)">
-                        Current
-                      </span>
-                    )}
+        {sessionsLoading ? (
+          <div className="py-8 flex items-center justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-muted" />
+          </div>
+        ) : sessionsError ? (
+          <div className="py-8 text-center">
+            <AlertCircle
+              className="w-7 h-7 mx-auto text-red-500"
+              strokeWidth={1.5}
+            />
+            <p className="mt-2 text-[13px] font-medium text-ink">
+              Couldn't load sessions
+            </p>
+            <p className="text-[12px] text-muted">{sessionsError}</p>
+            <button
+              type="button"
+              onClick={fetchSessions}
+              className="btn-secondary mt-3"
+            >
+              Retry
+            </button>
+          </div>
+        ) : sessions.length === 0 ? (
+          <p className="py-6 text-center text-[12.5px] text-muted">
+            No other active sessions.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {sessions.map((s) => {
+              const kind = detectDevice(s.device_info);
+              const Icon = DEVICE_ICON[kind];
+              return (
+                <li
+                  key={s.id}
+                  className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0"
+                >
+                  <div className="w-9 h-9 rounded-[8px] bg-line-soft text-ink flex items-center justify-center shrink-0">
+                    <Icon className="w-4 h-4" strokeWidth={1.75} />
                   </div>
-                  <p className="text-[12px] text-muted">
-                    {s.location} · {s.lastActive}
-                  </p>
-                </div>
-                {!s.current && (
-                  <button
-                    type="button"
-                    onClick={() => revokeSession(s.id)}
-                    className="text-[12px] font-medium text-muted hover:text-red-600 transition-colors"
-                  >
-                    Revoke
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-ink truncate">
+                      {s.device_info || "Unknown device"}
+                    </p>
+                    <p className="text-[12px] text-muted">
+                      {s.ip_address ? `${s.ip_address} · ` : ""}Active{" "}
+                      {relativeTime(s.last_activity)}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </SettingCard>
 
       <Modal
         open={confirmLogout}
-        onClose={() => setConfirmLogout(false)}
+        onClose={() => !logoutBusy && setConfirmLogout(false)}
         title="Logout from all devices?"
-        description="You'll stay signed in on this device. All other sessions will end immediately."
+        description="All sessions will end immediately. You'll need to sign in again on this device too."
         icon={AlertCircle}
         iconTone="bg-(--color-danger-bg) text-(--color-danger-fg)"
         size="sm"
+        closable={!logoutBusy}
         footer={
           <>
             <button
               type="button"
               onClick={() => setConfirmLogout(false)}
+              disabled={logoutBusy}
               className="btn-secondary"
             >
               Cancel
@@ -320,18 +452,22 @@ const SecurityTab = () => {
             <button
               type="button"
               onClick={logoutAll}
-              className="inline-flex items-center justify-center gap-2 rounded-[6px] px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors bg-red-600 hover:bg-red-700 text-white"
+              disabled={logoutBusy}
+              className="inline-flex items-center justify-center gap-2 rounded-[6px] px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors bg-red-600 hover:bg-red-700 text-white disabled:opacity-70"
             >
-              <LogOut className="w-3.5 h-3.5" strokeWidth={2} />
+              {logoutBusy ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <LogOut className="w-3.5 h-3.5" strokeWidth={2} />
+              )}
               Logout All
             </button>
           </>
         }
       >
         <p className="text-[13px] text-muted">
-          {sessions.filter((s) => !s.current).length} other session
-          {sessions.filter((s) => !s.current).length === 1 ? "" : "s"} will be
-          revoked.
+          {sessions.length} active session{sessions.length === 1 ? "" : "s"}{" "}
+          will be revoked.
         </p>
       </Modal>
     </div>
