@@ -127,7 +127,6 @@ const RegisterPage = () => {
                   onChange={(e) => setRole(e.target.value)}
                 >
                   <option value="partner">Partner</option>
-                  <option value="admin">Administrator</option>
                 </select>
               </div>
 

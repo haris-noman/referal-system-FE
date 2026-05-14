@@ -19,7 +19,7 @@ function Tabs<T extends string>({ tabs, value, onChange, className }: Props<T>) 
     <div
       role="tablist"
       className={cn(
-        "flex flex-wrap items-center gap-1 bg-white border border-line rounded-card p-1",
+        "flex items-center gap-1 bg-white border border-line rounded-card p-1 overflow-x-auto",
         className,
       )}
     >
@@ -34,7 +34,7 @@ function Tabs<T extends string>({ tabs, value, onChange, className }: Props<T>) 
             aria-selected={active}
             onClick={() => onChange(tab.value)}
             className={cn(
-              "inline-flex items-center gap-2 px-3.5 py-2 rounded-[6px] text-[12.5px] font-medium transition-colors",
+              "inline-flex items-center gap-2 px-3.5 py-2 rounded-[6px] text-[12.5px] font-medium transition-colors whitespace-nowrap shrink-0",
               active
                 ? "text-white"
                 : "text-muted hover:bg-line-soft hover:text-ink",

@@ -44,7 +44,7 @@ const SettingsPage = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="text-[24px] font-bold text-ink tracking-tight">
+          <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
             Settings
           </h2>
           <p className="text-sm text-muted mt-1">

@@ -548,7 +548,7 @@ const DocumentsPage = () => {
     <div className="space-y-5">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="text-[24px] font-bold text-ink tracking-tight">
+          <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
             Documents
           </h2>
           <p className="text-sm text-muted mt-1">
@@ -631,7 +631,7 @@ const DocumentsPage = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         <StatCard
           label="Total Documents"
           value={(summary?.total_documents ?? documents.length).toString()}
@@ -861,22 +861,22 @@ const DocumentsPage = () => {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-line">
-                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted whitespace-nowrap">
                       Document
                     </th>
-                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted whitespace-nowrap">
                       Type
                     </th>
-                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted whitespace-nowrap">
                       Uploaded By
                     </th>
-                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted whitespace-nowrap">
                       Date
                     </th>
-                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted whitespace-nowrap">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
+                    <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right whitespace-nowrap">
                       Actions
                     </th>
                   </tr>
@@ -910,7 +910,7 @@ const DocumentsPage = () => {
                           key={doc.id}
                           className="border-b border-line last:border-b-0 hover:bg-line-soft/40 transition-colors"
                         >
-                          <td className="px-6 py-3.5">
+                          <td className="px-4 sm:px-6 py-3.5">
                             <div className="flex items-center gap-3 min-w-0">
                               <div
                                 className={cn(
@@ -933,12 +933,12 @@ const DocumentsPage = () => {
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-3.5">
+                          <td className="px-4 sm:px-6 py-3.5">
                             <span className="text-[12px] font-medium text-muted">
                               {TYPE_LABEL[doc.type]}
                             </span>
                           </td>
-                          <td className="px-6 py-3.5">
+                          <td className="px-4 sm:px-6 py-3.5">
                             <div className="flex items-center gap-2">
                               <span className="w-7 h-7 rounded-full bg-line-soft text-muted text-[10px] font-bold flex items-center justify-center">
                                 {doc.uploaderInitials}
@@ -948,12 +948,12 @@ const DocumentsPage = () => {
                               </span>
                             </div>
                           </td>
-                          <td className="px-6 py-3.5">
+                          <td className="px-4 sm:px-6 py-3.5">
                             <span className="text-[12px] text-muted">
                               {formatDate(doc.uploadedAt)}
                             </span>
                           </td>
-                          <td className="px-6 py-3.5">
+                          <td className="px-4 sm:px-6 py-3.5">
                             <span
                               className={cn(
                                 "px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider",
@@ -963,7 +963,7 @@ const DocumentsPage = () => {
                               {STATUS_LABEL[doc.status]}
                             </span>
                           </td>
-                          <td className="px-6 py-3.5 text-right">
+                          <td className="px-4 sm:px-6 py-3.5 text-right">
                             <DocumentRowActions
                               doc={doc}
                               busy={busy}

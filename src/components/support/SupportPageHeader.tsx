@@ -33,7 +33,7 @@ const SupportPageHeader = ({
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-2">
           {eyebrow}
         </p>
-        <h2 className="mt-1 text-[24px] font-bold text-ink tracking-tight leading-tight">
+        <h2 className="mt-1 text-[20px] sm:text-[24px] font-bold text-ink tracking-tight leading-tight">
           {title}
         </h2>
         {description && (

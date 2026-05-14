@@ -324,26 +324,28 @@ const DashboardPage = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="text-[24px] font-bold text-ink tracking-tight">
+          <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
             {user?.role === 'admin' ? 'Administrator Overview' : 'Partner Overview'}
           </h2>
           <p className="text-sm text-muted mt-1">
             Performance metrics and referral activities for {new Date().getFullYear()}
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <button
             type="button"
             onClick={handleDownloadReport}
             className="btn-secondary"
           >
             <Download className="w-3.5 h-3.5" strokeWidth={2} />
-            Download Report
+            <span className="hidden sm:inline">Download Report</span>
+            <span className="sm:hidden">Export</span>
           </button>
           {user?.role !== "admin" && (
             <Link to="/submit" className="btn-primary">
               <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-              Submit New Referral
+              <span className="hidden sm:inline">Submit New Referral</span>
+              <span className="sm:hidden">New Referral</span>
             </Link>
           )}
         </div>
@@ -497,7 +499,7 @@ const DashboardPage = () => {
       </div>
 
       <div className="bg-white border border-line rounded-card overflow-hidden">
-        <div className="px-6 py-5 flex items-center justify-between border-b border-line gap-3 flex-wrap">
+        <div className="px-4 sm:px-6 py-5 flex items-center justify-between border-b border-line gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <h3 className="text-[15px] font-semibold text-ink">
               Referral Pipeline
@@ -572,23 +574,23 @@ const DashboardPage = () => {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-line">
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted whitespace-nowrap">
                   Referral Name
                 </th>
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted whitespace-nowrap">
                   Date Submitted
                 </th>
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted whitespace-nowrap">
                   Value
                 </th>
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted whitespace-nowrap">
                   Status
                 </th>
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right whitespace-nowrap">
                   Estimate/Commission
                 </th>
                 {user?.role === 'admin' && (
-                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
+                  <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right whitespace-nowrap">
                     Actions
                   </th>
                 )}
@@ -600,7 +602,7 @@ const DashboardPage = () => {
                   key={row.id}
                   className="border-b border-line-soft last:border-b-0 hover:bg-line-soft/50 transition-colors"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-[2px] bg-line-soft flex items-center justify-center text-[10px] font-bold text-muted">
                         {row.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
@@ -615,20 +617,20 @@ const DashboardPage = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-[13px] text-muted">
+                  <td className="px-4 sm:px-6 py-4 text-[13px] text-muted whitespace-nowrap">
                     {new Date(row.submitted_at).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 text-[13px] font-semibold text-ink">
+                  <td className="px-4 sm:px-6 py-4 text-[13px] font-semibold text-ink whitespace-nowrap">
                     ${parseFloat(row.estimated_value).toLocaleString()}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <StatusPill status={row.status} />
                   </td>
-                  <td className="px-6 py-4 text-right text-[13px] font-semibold text-ink">
+                  <td className="px-4 sm:px-6 py-4 text-right text-[13px] font-semibold text-ink whitespace-nowrap">
                     {row.status === 'approved' ? `$${parseFloat(row.commission_amount).toLocaleString()}` : '—'}
                   </td>
                   {user?.role === 'admin' && (
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-4 sm:px-6 py-4 text-right whitespace-nowrap">
                       {row.status === 'pending' ? (
                         <div className="flex justify-end gap-2">
                           <button
@@ -652,7 +654,7 @@ const DashboardPage = () => {
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={user?.role === 'admin' ? 6 : 5} className="px-6 py-10 text-center text-muted">
+                  <td colSpan={user?.role === 'admin' ? 6 : 5} className="px-4 sm:px-6 py-10 text-center text-muted">
                     {pipeline.length === 0
                       ? "No referrals found."
                       : "No referrals match your search or filters."}

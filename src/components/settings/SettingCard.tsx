@@ -23,7 +23,7 @@ export const SettingCard = ({
       className,
     )}
   >
-    <header className="px-6 py-4 border-b border-line flex items-start justify-between gap-4">
+    <header className="px-4 sm:px-6 py-4 border-b border-line flex items-start justify-between gap-4 flex-wrap">
       <div className="flex items-start gap-3 min-w-0">
         {Icon && (
           <div className="w-9 h-9 rounded-[8px] bg-line-soft text-ink flex items-center justify-center shrink-0">
@@ -40,10 +40,10 @@ export const SettingCard = ({
         </div>
       </div>
       {actions && (
-        <div className="flex items-center gap-2 shrink-0">{actions}</div>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">{actions}</div>
       )}
     </header>
-    <div className="p-6">{children}</div>
+    <div className="p-4 sm:p-6">{children}</div>
   </section>
 );
 

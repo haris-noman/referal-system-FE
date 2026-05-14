@@ -15,6 +15,7 @@ import {
   Ticket,
   Activity,
   ChevronDown,
+  Menu,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { NetworkPortalBadge } from "../ui/Logo";
@@ -98,14 +99,17 @@ const SidebarLink = ({
   label,
   href,
   active,
+  onNavigate,
 }: {
   icon: any;
   label: string;
   href: string;
   active?: boolean;
+  onNavigate?: () => void;
 }) => (
   <Link
     to={href}
+    onClick={onNavigate}
     aria-current={active ? "page" : undefined}
     className={cn(
       "relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
@@ -126,7 +130,13 @@ const SidebarLink = ({
   </Link>
 );
 
-const SupportDropdown = ({ currentPath }: { currentPath: string }) => {
+const SupportDropdown = ({
+  currentPath,
+  onNavigate,
+}: {
+  currentPath: string;
+  onNavigate?: () => void;
+}) => {
   const inSupport = currentPath.startsWith("/support");
   const [open, setOpen] = useState(inSupport);
 
@@ -184,6 +194,7 @@ const SupportDropdown = ({ currentPath }: { currentPath: string }) => {
                 <Link
                   key={item.href}
                   to={item.href}
+                  onClick={onNavigate}
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[12.5px] transition-colors",
                     active
@@ -208,6 +219,8 @@ const LayoutInner = () => {
   const navigate = useNavigate();
   const title = TITLES[location.pathname] ?? "Referral Portal";
   const [user, setUser] = useState<any>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const { query, setQuery } = useSearch();
   const searchEnabled = SEARCH_ENABLED_PATHS.has(location.pathname);
 
@@ -224,8 +237,6 @@ const LayoutInner = () => {
 
     fetchProfile();
 
-    // ProfileTab dispatches this after a successful save so the header
-    // avatar/name stay in sync without remounting the layout.
     const onProfileUpdated = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail) setUser(detail);
@@ -239,7 +250,24 @@ const LayoutInner = () => {
     if (!searchEnabled && query) {
       setQuery("");
     }
+    if (!searchEnabled) setMobileSearchOpen(false);
   }, [searchEnabled, query, setQuery]);
+
+  // Close the sidebar drawer whenever the route changes on mobile.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Lock body scroll while the mobile drawer is open.
+  useEffect(() => {
+    if (sidebarOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [sidebarOpen]);
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
@@ -262,15 +290,31 @@ const LayoutInner = () => {
     );
   };
 
+  const closeSidebar = () => setSidebarOpen(false);
+
   return (
     <div className="flex min-h-screen bg-canvas">
-      <aside className="w-[232px] shrink-0 bg-surface border-r border-line flex flex-col fixed h-screen z-20 overflow-y-auto">
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={closeSidebar}
+          className="lg:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-[2px]"
+        />
+      )}
+
+      <aside
+        className={cn(
+          "w-[232px] shrink-0 bg-surface border-r border-line flex flex-col fixed h-screen z-40 overflow-y-auto transition-transform duration-300 ease-in-out lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
         <div className="px-6 pt-6 pb-8 flex items-center gap-3">
           <NetworkPortalBadge
             title="Network Portal"
             className="w-8 h-8 shrink-0"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-[14px] font-bold tracking-tight text-ink leading-none">
               Network Portal
             </h1>
@@ -278,16 +322,32 @@ const LayoutInner = () => {
               Enterprise Admin
             </p>
           </div>
+          <button
+            type="button"
+            onClick={closeSidebar}
+            className="lg:hidden p-1.5 -mr-1 rounded-md text-muted hover:bg-line-soft hover:text-ink transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="w-4 h-4" strokeWidth={2} />
+          </button>
         </div>
 
         <nav className="flex-1 px-4 space-y-0.5">
           {NAV.map((item) => (
-            <SidebarLink key={item.href} {...item} active={isActive(item)} />
+            <SidebarLink
+              key={item.href}
+              {...item}
+              active={isActive(item)}
+              onNavigate={closeSidebar}
+            />
           ))}
         </nav>
 
         <div className="px-4 py-6 border-t border-line space-y-0.5">
-          <SupportDropdown currentPath={location.pathname} />
+          <SupportDropdown
+            currentPath={location.pathname}
+            onNavigate={closeSidebar}
+          />
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted hover:bg-line-soft hover:text-ink transition-colors"
@@ -298,14 +358,24 @@ const LayoutInner = () => {
         </div>
       </aside>
 
-      <main className="flex-1 ml-[232px] min-h-screen flex flex-col">
-        <header className="h-[60px] bg-surface border-b border-line px-8 flex items-center justify-between sticky top-0 z-10">
-          <div className="flex items-center gap-6">
-            <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-ink">
+      <main className="flex-1 lg:ml-[232px] min-h-screen flex flex-col min-w-0">
+        <header className="h-[60px] bg-surface border-b border-line px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-20 gap-3">
+          <div className="flex items-center gap-3 sm:gap-6 min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 -ml-2 rounded-md text-ink hover:bg-line-soft transition-colors"
+              aria-label="Open menu"
+            >
+              <Menu className="w-5 h-5" strokeWidth={2} />
+            </button>
+
+            <span className="hidden sm:inline text-[12px] font-bold uppercase tracking-[0.12em] text-ink truncate">
               {title}
             </span>
-            <span className="h-5 w-px bg-line" />
-            <div className="relative w-[320px]">
+            <span className="hidden md:inline h-5 w-px bg-line" />
+
+            <div className="relative hidden md:block w-[260px] lg:w-[320px]">
               {searchEnabled && (
                 <>
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-2" />
@@ -333,15 +403,26 @@ const LayoutInner = () => {
                 </button>
               )}
             </div>
+
+            {searchEnabled && (
+              <button
+                type="button"
+                onClick={() => setMobileSearchOpen((v) => !v)}
+                className="md:hidden p-2 rounded-md text-ink hover:bg-line-soft transition-colors"
+                aria-label="Search"
+              >
+                <Search className="w-5 h-5" strokeWidth={2} />
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-5">
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-[13px] font-semibold text-ink leading-tight">
+          <div className="flex items-center gap-3 sm:gap-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="hidden sm:block text-right max-w-[160px]">
+                <p className="text-[13px] font-semibold text-ink leading-tight truncate">
                   {user?.full_name || "Guest User"}
                 </p>
-                <p className="text-[11px] text-muted leading-tight">
+                <p className="text-[11px] text-muted leading-tight truncate">
                   {user?.role === "admin" ? "Administrator" : "Global Partner"}
                 </p>
               </div>
@@ -353,7 +434,33 @@ const LayoutInner = () => {
           </div>
         </header>
 
-        <div className="px-10 py-8 flex-1 bg-canvas">
+        {searchEnabled && mobileSearchOpen && (
+          <div className="md:hidden bg-surface border-b border-line px-4 py-2.5 sticky top-[60px] z-10">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-2" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by referrals"
+                autoFocus
+                className="field pl-9 pr-9"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-2 hover:text-ink hover:bg-line-soft transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" strokeWidth={2} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="px-4 sm:px-6 lg:px-10 py-6 lg:py-8 flex-1 bg-canvas min-w-0">
           <Outlet />
         </div>
       </main>

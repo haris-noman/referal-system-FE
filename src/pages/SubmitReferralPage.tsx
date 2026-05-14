@@ -22,12 +22,12 @@ const Section = ({
   children: React.ReactNode;
 }) => (
   <div className="bg-white border border-line rounded-card overflow-hidden">
-    <div className="px-6 py-3 bg-line-soft border-b border-line">
+    <div className="px-4 sm:px-6 py-3 bg-line-soft border-b border-line">
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
         {title}
       </h3>
     </div>
-    <div className="p-6">{children}</div>
+    <div className="p-4 sm:p-6">{children}</div>
   </div>
 );
 
@@ -536,7 +536,7 @@ const SubmitReferralPage = () => {
         </div>
 
         <aside className="space-y-5">
-          <div className="bg-ink text-white rounded-card p-6">
+          <div className="bg-ink text-white rounded-card p-4 sm:p-6">
             <h3 className="text-[15px] font-semibold mb-4">
               Referral Guidelines
             </h3>

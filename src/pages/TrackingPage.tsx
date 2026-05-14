@@ -290,7 +290,7 @@ const TrackingPage = () => {
     <div className="space-y-5">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="text-[24px] font-bold text-ink tracking-tight">
+          <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
             Referral Tracking
           </h2>
           <p className="text-sm text-muted mt-1">
@@ -298,7 +298,7 @@ const TrackingPage = () => {
             referrals.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <button
             type="button"
             onClick={handleExport}
@@ -317,7 +317,7 @@ const TrackingPage = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
-        <div className="md:col-span-2 bg-white border border-line rounded-card px-5 py-3 flex items-center gap-2 flex-wrap">
+        <div className="md:col-span-2 bg-white border border-line rounded-card px-4 sm:px-5 py-3 flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
             <FilterIcon className="w-3.5 h-3.5" strokeWidth={2} />
             Filters
@@ -457,23 +457,23 @@ const TrackingPage = () => {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-line">
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left whitespace-nowrap">
                   ID
                 </th>
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left whitespace-nowrap">
                   Lead Name
                 </th>
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left whitespace-nowrap">
                   Date Submitted
                 </th>
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right whitespace-nowrap">
                   Value
                 </th>
-                <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left">
+                <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-left whitespace-nowrap">
                   Status
                 </th>
                 {user?.role === 'admin' && (
-                  <th className="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right">
+                  <th className="px-4 sm:px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted text-right whitespace-nowrap">
                     Actions
                   </th>
                 )}
@@ -485,12 +485,12 @@ const TrackingPage = () => {
                   key={row.id}
                   className="border-b border-line-soft last:border-b-0 hover:bg-line-soft/50 transition-colors"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <span className="text-[12px] font-semibold text-muted">
                       #{row.id}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-7 h-7 rounded-full bg-line-soft flex items-center justify-center text-[10px] font-bold text-muted">
                         {row.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
@@ -500,17 +500,17 @@ const TrackingPage = () => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-[13px] text-muted">
+                  <td className="px-4 sm:px-6 py-4 text-[13px] text-muted whitespace-nowrap">
                     {new Date(row.submitted_at).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 text-right text-[13px] font-semibold text-ink">
+                  <td className="px-4 sm:px-6 py-4 text-right text-[13px] font-semibold text-ink whitespace-nowrap">
                     ${parseFloat(row.estimated_value).toLocaleString()}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <StatusPill status={row.status} />
                   </td>
                   {user?.role === 'admin' && (
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-4 sm:px-6 py-4 text-right whitespace-nowrap">
                       {row.status === 'pending' ? (
                         <div className="flex justify-end gap-2">
                           <button
@@ -534,7 +534,7 @@ const TrackingPage = () => {
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={user?.role === 'admin' ? 6 : 5} className="px-6 py-10 text-center text-muted">
+                  <td colSpan={user?.role === 'admin' ? 6 : 5} className="px-4 sm:px-6 py-10 text-center text-muted">
                     {referrals.length === 0
                       ? "No referrals found."
                       : "No referrals match your search or filters."}
@@ -544,7 +544,7 @@ const TrackingPage = () => {
             </tbody>
           </table>
         </div>
-        <div className="px-6 py-3 border-t border-line text-[12px] text-muted">
+        <div className="px-4 sm:px-6 py-3 border-t border-line text-[12px] text-muted">
           Showing <span className="font-semibold text-ink">{displayedReferrals.length}</span> of {referrals.length} referrals
         </div>
       </div>
