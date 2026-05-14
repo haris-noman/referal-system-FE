@@ -305,7 +305,7 @@ const LayoutInner = () => {
 
       <aside
         className={cn(
-          "w-[232px] shrink-0 bg-surface border-r border-line flex flex-col fixed h-screen z-40 overflow-y-auto transition-transform duration-300 ease-in-out lg:translate-x-0",
+          "w-[232px] shrink-0 bg-surface border-r border-line flex flex-col fixed inset-y-0 h-dvh z-40 overflow-y-auto overscroll-contain transition-transform duration-300 ease-in-out lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
