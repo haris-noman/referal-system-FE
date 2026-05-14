@@ -31,18 +31,6 @@ export type ApiNotifications = {
 
 export type NotificationsUpdate = Partial<ApiNotifications>;
 
-// ---------- Appearance ----------
-
-export type AppearanceLanguage = "en" | "es" | "fr" | "ar";
-
-export type ApiAppearance = {
-  dark_mode: boolean;
-  language: AppearanceLanguage;
-  theme_color: string;
-};
-
-export type AppearanceUpdate = Partial<ApiAppearance>;
-
 // ---------- Security ----------
 
 export type ApiTwoFactor = {
@@ -134,20 +122,6 @@ export const settingsApi = {
     ): Promise<ApiNotifications> => {
       const res = await api.patch<ApiNotifications>(
         "/settings/notifications/",
-        payload,
-      );
-      return res.data;
-    },
-  },
-
-  appearance: {
-    get: async (): Promise<ApiAppearance> => {
-      const res = await api.get<ApiAppearance>("/settings/appearance/");
-      return res.data;
-    },
-    update: async (payload: AppearanceUpdate): Promise<ApiAppearance> => {
-      const res = await api.patch<ApiAppearance>(
-        "/settings/appearance/",
         payload,
       );
       return res.data;

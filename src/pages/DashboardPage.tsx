@@ -28,7 +28,6 @@ import { Link } from "react-router-dom";
 import { cn } from "../lib/utils";
 import api from "../lib/api";
 import { useSearch } from "../contexts/SearchContext";
-import { useTheme } from "../contexts/ThemeContext";
 import { exportCsv } from "../lib/exportCsv";
 import { Popover, PopoverItem } from "../components/ui/Popover";
 import ReferralActionModal, {
@@ -36,32 +35,15 @@ import ReferralActionModal, {
   type ReferralActionTarget,
 } from "../components/ReferralActionModal";
 
-/**
- * Per-mode palette for the recharts bar chart. Recharts takes color values
- * via props, not CSS, so we resolve them from the active theme. Light values
- * mirror what the chart used before this refactor.
- */
 const CHART_COLORS = {
-  light: {
-    grid: "#F1F2F4",
-    axisTick: "#9CA3AF",
-    cursor: "#F5F6F8",
-    tooltipBg: "#FFFFFF",
-    tooltipBorder: "#E5E7EB",
-    tooltipText: "#0B1220",
-    approved: "#0B1220",
-    pending: "#E5E7EB",
-  },
-  dark: {
-    grid: "#2A2F3A",
-    axisTick: "#9CA3AF",
-    cursor: "rgba(255,255,255,0.04)",
-    tooltipBg: "#161B22",
-    tooltipBorder: "#2A2F3A",
-    tooltipText: "#F3F4F6",
-    approved: "#F3F4F6",
-    pending: "#2A2F3A",
-  },
+  grid: "#F1F2F4",
+  axisTick: "#9CA3AF",
+  cursor: "#F5F6F8",
+  tooltipBg: "#FFFFFF",
+  tooltipBorder: "#E5E7EB",
+  tooltipText: "#0B1220",
+  approved: "#0B1220",
+  pending: "#E5E7EB",
 } as const;
 
 type StatTone = "neutral" | "warning" | "info" | "success";
@@ -172,8 +154,6 @@ const DashboardPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const { query } = useSearch();
-  const { resolvedDark } = useTheme();
-  const chartPalette = resolvedDark ? CHART_COLORS.dark : CHART_COLORS.light;
   const [sortValue, setSortValue] = useState<`${SortKey}:${SortDir}`>(
     "submitted_at:desc",
   );
@@ -408,14 +388,14 @@ const DashboardPage = () => {
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
-                  stroke={chartPalette.grid}
+                  stroke={CHART_COLORS.grid}
                 />
                 <XAxis
                   dataKey="name"
                   axisLine={false}
                   tickLine={false}
                   tick={{
-                    fill: chartPalette.axisTick,
+                    fill: CHART_COLORS.axisTick,
                     fontSize: 10,
                     fontWeight: 600,
                     letterSpacing: 1,
@@ -426,33 +406,33 @@ const DashboardPage = () => {
                   axisLine={false}
                   tickLine={false}
                   tick={{
-                    fill: chartPalette.axisTick,
+                    fill: CHART_COLORS.axisTick,
                     fontSize: 10,
                     fontWeight: 500,
                   }}
                 />
                 <Tooltip
-                  cursor={{ fill: chartPalette.cursor }}
+                  cursor={{ fill: CHART_COLORS.cursor }}
                   contentStyle={{
                     borderRadius: "8px",
-                    border: `1px solid ${chartPalette.tooltipBorder}`,
-                    backgroundColor: chartPalette.tooltipBg,
-                    color: chartPalette.tooltipText,
+                    border: `1px solid ${CHART_COLORS.tooltipBorder}`,
+                    backgroundColor: CHART_COLORS.tooltipBg,
+                    color: CHART_COLORS.tooltipText,
                     fontSize: "12px",
                   }}
-                  labelStyle={{ color: chartPalette.tooltipText }}
-                  itemStyle={{ color: chartPalette.tooltipText }}
+                  labelStyle={{ color: CHART_COLORS.tooltipText }}
+                  itemStyle={{ color: CHART_COLORS.tooltipText }}
                 />
                 <Legend wrapperStyle={{ display: "none" }} />
                 <Bar
                   dataKey="approved"
-                  fill={chartPalette.approved}
+                  fill={CHART_COLORS.approved}
                   radius={[3, 3, 0, 0]}
                   barSize={14}
                 />
                 <Bar
                   dataKey="pending"
-                  fill={chartPalette.pending}
+                  fill={CHART_COLORS.pending}
                   radius={[3, 3, 0, 0]}
                   barSize={14}
                 />
