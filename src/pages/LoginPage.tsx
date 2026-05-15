@@ -23,6 +23,7 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("partner");
   const [tempToken, setTempToken] = useState("");
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -205,6 +206,23 @@ const LoginPage = () => {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <label className="eyebrow">Account Type</label>
+                  <select
+                    className="field appearance-none cursor-pointer bg-no-repeat pr-9"
+                    style={{
+                      backgroundImage:
+                        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")",
+                      backgroundPosition: "right 12px center",
+                    }}
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                  >
+                    <option value="partner">Partner</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+
                 <button
                   type="submit"
                   className="btn-primary w-full mt-2 py-3 disabled:opacity-70"
@@ -253,7 +271,7 @@ const LoginPage = () => {
                   </div>
                 )}
                 {info && !error && (
-                  <div className="p-3 bg-(--color-info-bg) border border-blue-100 text-(--color-info-fg) text-[13px] rounded-md">
+                  <div className="p-3 bg-info-bg border border-blue-100 text-info-fg text-[13px] rounded-md">
                     {info}
                   </div>
                 )}
@@ -268,7 +286,9 @@ const LoginPage = () => {
                     maxLength={CODE_LENGTH}
                     value={code}
                     onChange={(e) =>
-                      setCode(e.target.value.replace(/\D/g, "").slice(0, CODE_LENGTH))
+                      setCode(
+                        e.target.value.replace(/\D/g, "").slice(0, CODE_LENGTH),
+                      )
                     }
                     placeholder="123456"
                     className="field text-center tracking-[0.5em] text-[18px] font-semibold"
