@@ -11,7 +11,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { NetworkPortalLogo } from "../components/ui/Logo";
-import { authApi, persistSession } from "../lib/authApi";
+import { authApi, persistSession, type UserRole } from "../lib/authApi";
 import { extractSettingsError } from "../lib/settingsApi";
 
 type Stage = "credentials" | "two-factor";
@@ -23,7 +23,7 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("partner");
+  const [role, setRole] = useState<UserRole>("partner");
   const [tempToken, setTempToken] = useState("");
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -55,7 +55,7 @@ const LoginPage = () => {
     setInfo("");
 
     try {
-      const data = await authApi.login({ email, password });
+      const data = await authApi.login({ email, password, role });
 
       if (data.requires_2fa && data.temp_token) {
         setTempToken(data.temp_token);
@@ -216,7 +216,7 @@ const LoginPage = () => {
                       backgroundPosition: "right 12px center",
                     }}
                     value={role}
-                    onChange={(e) => setRole(e.target.value)}
+                    onChange={(e) => setRole(e.target.value as UserRole)}
                   >
                     <option value="partner">Partner</option>
                     <option value="admin">Administrator</option>

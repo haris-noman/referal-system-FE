@@ -5,6 +5,7 @@ export type UserRole = "partner" | "admin";
 export type LoginRequest = {
   email: string;
   password: string;
+  role?: UserRole;
 };
 
 /**
